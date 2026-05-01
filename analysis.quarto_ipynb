@@ -1,0 +1,689 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "7b58f36f",
+   "metadata": {},
+   "source": [
+    "---\n",
+    "title: \"Deep Dive — How Step 5 Works and Why It Succeeds\"\n",
+    "format:\n",
+    "  html:\n",
+    "    toc: true\n",
+    "    toc-depth: 3\n",
+    "---"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "b29b37d3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#| echo: false\n",
+    "#| warning: false\n",
+    "import polars as pl, re\n",
+    "import plotly.graph_objects as go\n",
+    "import plotly.express as px\n",
+    "\n",
+    "CSV = '/Users/omkarmalpure/Documents/broadjump_v2/analyze-data/UOM-38552.csv'\n",
+    "df = pl.read_csv(CSV, null_values=['', 'NULL'])\n",
+    "\n",
+    "step5_df     = df.filter(pl.col('RecognizedUOMMatchReason').str.starts_with('Step 5').fill_null(False))\n",
+    "unrecog_df   = df.filter(pl.col('IsRecognized') == False)\n",
+    "total        = len(df)\n",
+    "step5_count  = len(step5_df)\n",
+    "unrecog      = len(unrecog_df)\n",
+    "\n",
+    "def extract_score(r):\n",
+    "    if not r: return None\n",
+    "    m = re.search(r'Proximity Score ([\\d.]+)', r)\n",
+    "    return float(m.group(1)) if m else None\n",
+    "\n",
+    "def extract_winner(r):\n",
+    "    if not r: return 'Unknown'\n",
+    "    if 'File UOM WAP' in r or ('FileUOM' in r and 'WAP' in r): return 'FileUOM WAP'\n",
+    "    if 'WAP candidate' in r: return 'EA/1 WAP'\n",
+    "    if 'KnownProductUOM' in r: return 'Known Product UOM'\n",
+    "    if 'DBSCAN' in r: return 'DBSCAN'\n",
+    "    return 'Other'\n",
+    "\n",
+    "reasons = step5_df['RecognizedUOMMatchReason'].to_list()\n",
+    "step5_df = step5_df.with_columns([\n",
+    "    pl.Series('parsed_score',  [extract_score(r)   for r in reasons]),\n",
+    "    pl.Series('winner_source', [extract_winner(r)  for r in reasons]),\n",
+    "])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ce15266b",
+   "metadata": {},
+   "source": [
+    "## Part 1 — DBSCAN-Built Thresholds (ThresholdV2)\n",
+    "\n",
+    "### Why the old thresholds (V1) were not enough\n",
+    "\n",
+    "Steps 1–4 rely on hand-crafted or statistically naive min/max price ranges.  A single\n",
+    "extreme purchase can widen a V1 threshold so much that it matches too broadly — or, when\n",
+    "data is sparse, the range is too tight to match realistic new transactions.\n",
+    "\n",
+    "### What DBSCAN does differently\n",
+    "\n",
+    "**DBSCAN** (Density-Based Spatial Clustering of Applications with Noise) groups historical\n",
+    "purchase prices for each product into *dense clusters* while treating statistical outliers\n",
+    "as noise.  The resulting ThresholdV2 records store:\n",
+    "\n",
+    "- `MinThreshold` / `MaxThreshold` — the actual observed price range of the cluster (not a\n",
+    "  hand-tuned rule).\n",
+    "- `QuantityOfEAInUOM` — the UOM quantity that cluster represents.\n",
+    "- `MeanEA` — a per-each price anchor used when no WAP entry is available.\n",
+    "\n",
+    "Because outliers are excluded, the clusters are tighter and more representative of real\n",
+    "analyst expectations.  A product that historically sells as a **BX/12** at $120–$180 will\n",
+    "produce one cluster with that range; a separate cluster covers the **EA** sales at $10–$15.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "## Part 2 — The Proximity Inference Formula\n",
+    "\n",
+    "Once DBSCAN clusters exist, Step 5 must decide which cluster (UOM) best explains the\n",
+    "current line's `PriceUOM`.  The key insight is that price operates on a **log scale** —\n",
+    "a $5 difference matters much more at a $10 product than at a $10,000 product.\n",
+    "\n",
+    "### Log-distance calculation\n",
+    "\n",
+    "```\n",
+    "logPrice = log₁₀(max(PriceUOM, 0.0001))\n",
+    "logLo    = log₁₀(max(MinThreshold, 0.0001))\n",
+    "logHi    = log₁₀(max(MaxThreshold, 0.0001))\n",
+    "\n",
+    "logDist  = 0                        if  lo ≤ price ≤ hi\n",
+    "         = logPrice − logHi         if  price > hi   (above range)\n",
+    "         = logLo − logPrice         if  price < lo   (below range)\n",
+    "```\n",
+    "\n",
+    "If the price falls *inside* the cluster band, the log-distance is exactly 0 — a perfect\n",
+    "match.  Outside the band the distance grows as the log ratio between the price and the\n",
+    "nearest edge.\n",
+    "\n",
+    "### Gaussian proximity score\n",
+    "\n",
+    "```\n",
+    "proximityScore = exp(−0.5 × (logDist / LOG_EPS)²)    where LOG_EPS = 0.25\n",
+    "```\n",
+    "\n",
+    "This is a **Gaussian kernel on log-price space**.  `LOG_EPS = 0.25` corresponds to roughly\n",
+    "a 1.8× price deviation from the cluster edge before the score drops to ~0.37.  At a 2×\n",
+    "deviation the score is ~0.02 — effectively zero.\n",
+    "\n",
+    "**Why this mirrors analyst reasoning:**\n",
+    "\n",
+    "Analysts verify a UOM assignment by mentally checking whether the price is \"in the right\n",
+    "ballpark\" for that product and pack size.  A box of 10 syringes should cost roughly 10×\n",
+    "what one syringe costs.  If the file price is 3× or 20× off, the analyst rejects it.\n",
+    "The proximity score formalises this intuition: prices within the cluster score near 1.0,\n",
+    "prices slightly outside drop gracefully, and wildly mismatched prices score near 0.\n",
+    "\n",
+    "### Four candidate pools\n",
+    "\n",
+    "Step 5 evaluates up to four candidate sources and picks the one with the highest proximity\n",
+    "score:\n",
+    "\n",
+    "| Source | What it is | Why it's included |\n",
+    "|--------|-----------|-------------------|\n",
+    "| **DBSCAN** | Cluster from ThresholdV2 | Primary signal — density-derived from history |\n",
+    "| **Known Product UOM** | WAP (Weighted Avg Price) from purchase history | Covers UOMs not yet in DBSCAN clusters |\n",
+    "| **EA/1 WAP** | Per-each derived from any known WAP ÷ quantity | Catches single-unit sales missing from DBSCAN |\n",
+    "| **File UOM × WAP** | File-stated UOM quantity × per-each WAP | Validates when the supplier already labelled the pack size |\n",
+    "\n",
+    "The File UOM candidate requires a minimum score of **0.85** to be considered — a stricter\n",
+    "bar because file labels are not always reliable.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "## Winner-Source Breakdown"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "38dffe15",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "        <script>\n",
+       "        window.PlotlyConfig = {MathJaxConfig: 'local'};\n",
+       "        if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: \"STIX-Web\"}});}\n",
+       "        </script>\n",
+       "        <script type=\"module\">import \"https://cdn.plot.ly/plotly-3.5.0.min\"</script>\n",
+       "        "
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>            <script src=\"https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_SVG\"></script><script>if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: \"STIX-Web\"}});}</script>                <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>\n",
+       "        <script charset=\"utf-8\" src=\"https://cdn.plot.ly/plotly-3.5.0.min.js\" integrity=\"sha256-fHbNLP+GlIXN+efbQec78UkemUz3NJp7UmfGxC1tNxs=\" crossorigin=\"anonymous\"></script>                <div id=\"d9f8ece7-6465-43bf-8c61-ea1cd99dae61\" class=\"plotly-graph-div\" style=\"height:400px; width:100%;\"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById(\"d9f8ece7-6465-43bf-8c61-ea1cd99dae61\")) {                    Plotly.newPlot(                        \"d9f8ece7-6465-43bf-8c61-ea1cd99dae61\",                        [{\"marker\":{\"color\":[\"#2980b9\",\"#8e44ad\",\"#e67e22\",\"#16a085\"]},\"text\":[\"47,554\",\"1,300\",\"1,128\",\"816\"],\"textposition\":\"outside\",\"x\":[\"DBSCAN\",\"Known Product UOM\",\"EA\\u002f1 WAP\",\"FileUOM WAP\"],\"y\":[47554,1300,1128,816],\"type\":\"bar\"}],                        {\"template\":{\"data\":{\"histogram2dcontour\":[{\"type\":\"histogram2dcontour\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"choropleth\":[{\"type\":\"choropleth\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"histogram2d\":[{\"type\":\"histogram2d\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"heatmap\":[{\"type\":\"heatmap\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"contourcarpet\":[{\"type\":\"contourcarpet\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"contour\":[{\"type\":\"contour\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"surface\":[{\"type\":\"surface\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"mesh3d\":[{\"type\":\"mesh3d\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"scatter\":[{\"fillpattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2},\"type\":\"scatter\"}],\"parcoords\":[{\"type\":\"parcoords\",\"line\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterpolargl\":[{\"type\":\"scatterpolargl\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"bar\":[{\"error_x\":{\"color\":\"#2a3f5f\"},\"error_y\":{\"color\":\"#2a3f5f\"},\"marker\":{\"line\":{\"color\":\"#E5ECF6\",\"width\":0.5},\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"bar\"}],\"scattergeo\":[{\"type\":\"scattergeo\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterpolar\":[{\"type\":\"scatterpolar\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"histogram\":[{\"marker\":{\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"histogram\"}],\"scattergl\":[{\"type\":\"scattergl\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatter3d\":[{\"type\":\"scatter3d\",\"line\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}},\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattermap\":[{\"type\":\"scattermap\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattermapbox\":[{\"type\":\"scattermapbox\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterternary\":[{\"type\":\"scatterternary\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattercarpet\":[{\"type\":\"scattercarpet\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"carpet\":[{\"aaxis\":{\"endlinecolor\":\"#2a3f5f\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"minorgridcolor\":\"white\",\"startlinecolor\":\"#2a3f5f\"},\"baxis\":{\"endlinecolor\":\"#2a3f5f\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"minorgridcolor\":\"white\",\"startlinecolor\":\"#2a3f5f\"},\"type\":\"carpet\"}],\"table\":[{\"cells\":{\"fill\":{\"color\":\"#EBF0F8\"},\"line\":{\"color\":\"white\"}},\"header\":{\"fill\":{\"color\":\"#C8D4E3\"},\"line\":{\"color\":\"white\"}},\"type\":\"table\"}],\"barpolar\":[{\"marker\":{\"line\":{\"color\":\"#E5ECF6\",\"width\":0.5},\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"barpolar\"}],\"pie\":[{\"automargin\":true,\"type\":\"pie\"}]},\"layout\":{\"autotypenumbers\":\"strict\",\"colorway\":[\"#636efa\",\"#EF553B\",\"#00cc96\",\"#ab63fa\",\"#FFA15A\",\"#19d3f3\",\"#FF6692\",\"#B6E880\",\"#FF97FF\",\"#FECB52\"],\"font\":{\"color\":\"#2a3f5f\"},\"hovermode\":\"closest\",\"hoverlabel\":{\"align\":\"left\"},\"paper_bgcolor\":\"white\",\"plot_bgcolor\":\"#E5ECF6\",\"polar\":{\"bgcolor\":\"#E5ECF6\",\"angularaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"radialaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"}},\"ternary\":{\"bgcolor\":\"#E5ECF6\",\"aaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"baxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"caxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"}},\"coloraxis\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}},\"colorscale\":{\"sequential\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]],\"sequentialminus\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]],\"diverging\":[[0,\"#8e0152\"],[0.1,\"#c51b7d\"],[0.2,\"#de77ae\"],[0.3,\"#f1b6da\"],[0.4,\"#fde0ef\"],[0.5,\"#f7f7f7\"],[0.6,\"#e6f5d0\"],[0.7,\"#b8e186\"],[0.8,\"#7fbc41\"],[0.9,\"#4d9221\"],[1,\"#276419\"]]},\"xaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\",\"title\":{\"standoff\":15},\"zerolinecolor\":\"white\",\"automargin\":true,\"zerolinewidth\":2},\"yaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\",\"title\":{\"standoff\":15},\"zerolinecolor\":\"white\",\"automargin\":true,\"zerolinewidth\":2},\"scene\":{\"xaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2},\"yaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2},\"zaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2}},\"shapedefaults\":{\"line\":{\"color\":\"#2a3f5f\"}},\"annotationdefaults\":{\"arrowcolor\":\"#2a3f5f\",\"arrowhead\":0,\"arrowwidth\":1},\"geo\":{\"bgcolor\":\"white\",\"landcolor\":\"#E5ECF6\",\"subunitcolor\":\"white\",\"showland\":true,\"showlakes\":true,\"lakecolor\":\"white\"},\"title\":{\"x\":0.05},\"mapbox\":{\"style\":\"light\"},\"margin\":{\"b\":0,\"l\":0,\"r\":0,\"t\":30}}},\"title\":{\"text\":\"Step 5 Recognitions by Winning Candidate Source\"},\"margin\":{\"t\":60,\"b\":40},\"xaxis\":{\"title\":{\"text\":\"Candidate Source\"}},\"yaxis\":{\"title\":{\"text\":\"Number of Rows Recognized\"}},\"height\":400},                        {\"responsive\": true}                    ).then(function(){\n",
+       "                            \n",
+       "var gd = document.getElementById('d9f8ece7-6465-43bf-8c61-ea1cd99dae61');\n",
+       "var x = new MutationObserver(function (mutations, observer) {{\n",
+       "        var display = window.getComputedStyle(gd).display;\n",
+       "        if (!display || display === 'none') {{\n",
+       "            console.log([gd, 'removed!']);\n",
+       "            Plotly.purge(gd);\n",
+       "            observer.disconnect();\n",
+       "        }}\n",
+       "}});\n",
+       "\n",
+       "// Listen for the removal of the full notebook cells\n",
+       "var notebookContainer = gd.closest('#notebook-container');\n",
+       "if (notebookContainer) {{\n",
+       "    x.observe(notebookContainer, {childList: true});\n",
+       "}}\n",
+       "\n",
+       "// Listen for the clearing of the current output cell\n",
+       "var outputEl = gd.closest('.output');\n",
+       "if (outputEl) {{\n",
+       "    x.observe(outputEl, {childList: true});\n",
+       "}}\n",
+       "\n",
+       "                        })                };            </script>        </div>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "#| echo: false\n",
+    "winner_counts = step5_df['winner_source'].value_counts(sort=True)\n",
+    "labels  = winner_counts['winner_source'].to_list()\n",
+    "values  = winner_counts['count'].to_list()\n",
+    "colors  = ['#2980b9', '#8e44ad', '#e67e22', '#16a085']\n",
+    "\n",
+    "fig = go.Figure(go.Bar(\n",
+    "    x=labels, y=values,\n",
+    "    marker_color=colors,\n",
+    "    text=[f'{v:,}' for v in values],\n",
+    "    textposition='outside',\n",
+    "))\n",
+    "fig.update_layout(\n",
+    "    title_text='Step 5 Recognitions by Winning Candidate Source',\n",
+    "    xaxis_title='Candidate Source',\n",
+    "    yaxis_title='Number of Rows Recognized',\n",
+    "    height=400,\n",
+    "    margin=dict(t=60, b=40),\n",
+    ")\n",
+    "fig.show()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "c8af871e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#| echo: false\n",
+    "dbscan_n  = int(winner_counts.filter(pl.col('winner_source') == 'DBSCAN')['count'][0])\n",
+    "known_n   = int(winner_counts.filter(pl.col('winner_source') == 'Known Product UOM')['count'][0])\n",
+    "ea1_n     = int(winner_counts.filter(pl.col('winner_source') == 'EA/1 WAP')['count'][0])\n",
+    "file_n    = int(winner_counts.filter(pl.col('winner_source') == 'FileUOM WAP')['count'][0])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "bce8633b",
+   "metadata": {
+    "user_expressions": [
+     {
+      "expression": "f\"{dbscan_n:,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'47,554'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{100*dbscan_n/step5_count:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'93.6'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{known_n:,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'1,300'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{100*known_n/step5_count:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'2.6'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{ea1_n:,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'1,128'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{100*ea1_n/step5_count:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'2.2'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{file_n:,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'816'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{100*file_n/step5_count:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'1.6'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{100*dbscan_n/step5_count:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'93.6'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{100*(step5_count-dbscan_n)/step5_count:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'6.4'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     }
+    ]
+   },
+   "source": [
+    "| Candidate | Recognitions | % of Step 5 total |\n",
+    "|-----------|-------------:|------------------:|\n",
+    "| DBSCAN cluster | `{python} f\"{dbscan_n:,}\"` | `{python} f\"{100*dbscan_n/step5_count:.1f}\"` % |\n",
+    "| Known Product UOM (WAP) | `{python} f\"{known_n:,}\"` | `{python} f\"{100*known_n/step5_count:.1f}\"` % |\n",
+    "| EA/1 WAP candidate | `{python} f\"{ea1_n:,}\"` | `{python} f\"{100*ea1_n/step5_count:.1f}\"` % |\n",
+    "| File UOM × WAP | `{python} f\"{file_n:,}\"` | `{python} f\"{100*file_n/step5_count:.1f}\"` % |\n",
+    "\n",
+    ": {.striped .hover}\n",
+    "\n",
+    "DBSCAN is the dominant winner (`{python} f\"{100*dbscan_n/step5_count:.1f}\"` %), validating that\n",
+    "the density-based clusters are the most reliable signal.  The remaining `{python} f\"{100*(step5_count-dbscan_n)/step5_count:.1f}\"` %\n",
+    "are split across the three supplementary pools — each of which catches a class of products\n",
+    "the primary DBSCAN clusters do not yet cover.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "## Top 10 Assigned UOMs (Step 5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "425b9013",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>            <script src=\"https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_SVG\"></script><script>if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: \"STIX-Web\"}});}</script>                <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>\n",
+       "        <script charset=\"utf-8\" src=\"https://cdn.plot.ly/plotly-3.5.0.min.js\" integrity=\"sha256-fHbNLP+GlIXN+efbQec78UkemUz3NJp7UmfGxC1tNxs=\" crossorigin=\"anonymous\"></script>                <div id=\"c10ccd53-0354-4484-abd7-8b71b7bd189c\" class=\"plotly-graph-div\" style=\"height:420px; width:100%;\"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById(\"c10ccd53-0354-4484-abd7-8b71b7bd189c\")) {                    Plotly.newPlot(                        \"c10ccd53-0354-4484-abd7-8b71b7bd189c\",                        [{\"marker\":{\"color\":\"#27ae60\"},\"orientation\":\"h\",\"text\":[\"22,026\",\"1,819\",\"1,308\",\"1,267\",\"1,254\",\"990\",\"964\",\"949\",\"930\",\"908\"],\"textposition\":\"outside\",\"x\":[22026,1819,1308,1267,1254,990,964,949,930,908],\"y\":[\"EA\\u002f1\",\"BX\\u002f10\",\"CA\\u002f10\",\"CA\\u002f50\",\"BX\\u002f50\",\"BX\\u002f5\",\"BX\\u002f100\",\"BX\\u002f12\",\"CA\\u002f12\",\"CA\\u002f100\"],\"type\":\"bar\"}],                        {\"template\":{\"data\":{\"histogram2dcontour\":[{\"type\":\"histogram2dcontour\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"choropleth\":[{\"type\":\"choropleth\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"histogram2d\":[{\"type\":\"histogram2d\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"heatmap\":[{\"type\":\"heatmap\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"contourcarpet\":[{\"type\":\"contourcarpet\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"contour\":[{\"type\":\"contour\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"surface\":[{\"type\":\"surface\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"mesh3d\":[{\"type\":\"mesh3d\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"scatter\":[{\"fillpattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2},\"type\":\"scatter\"}],\"parcoords\":[{\"type\":\"parcoords\",\"line\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterpolargl\":[{\"type\":\"scatterpolargl\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"bar\":[{\"error_x\":{\"color\":\"#2a3f5f\"},\"error_y\":{\"color\":\"#2a3f5f\"},\"marker\":{\"line\":{\"color\":\"#E5ECF6\",\"width\":0.5},\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"bar\"}],\"scattergeo\":[{\"type\":\"scattergeo\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterpolar\":[{\"type\":\"scatterpolar\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"histogram\":[{\"marker\":{\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"histogram\"}],\"scattergl\":[{\"type\":\"scattergl\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatter3d\":[{\"type\":\"scatter3d\",\"line\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}},\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattermap\":[{\"type\":\"scattermap\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattermapbox\":[{\"type\":\"scattermapbox\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterternary\":[{\"type\":\"scatterternary\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattercarpet\":[{\"type\":\"scattercarpet\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"carpet\":[{\"aaxis\":{\"endlinecolor\":\"#2a3f5f\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"minorgridcolor\":\"white\",\"startlinecolor\":\"#2a3f5f\"},\"baxis\":{\"endlinecolor\":\"#2a3f5f\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"minorgridcolor\":\"white\",\"startlinecolor\":\"#2a3f5f\"},\"type\":\"carpet\"}],\"table\":[{\"cells\":{\"fill\":{\"color\":\"#EBF0F8\"},\"line\":{\"color\":\"white\"}},\"header\":{\"fill\":{\"color\":\"#C8D4E3\"},\"line\":{\"color\":\"white\"}},\"type\":\"table\"}],\"barpolar\":[{\"marker\":{\"line\":{\"color\":\"#E5ECF6\",\"width\":0.5},\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"barpolar\"}],\"pie\":[{\"automargin\":true,\"type\":\"pie\"}]},\"layout\":{\"autotypenumbers\":\"strict\",\"colorway\":[\"#636efa\",\"#EF553B\",\"#00cc96\",\"#ab63fa\",\"#FFA15A\",\"#19d3f3\",\"#FF6692\",\"#B6E880\",\"#FF97FF\",\"#FECB52\"],\"font\":{\"color\":\"#2a3f5f\"},\"hovermode\":\"closest\",\"hoverlabel\":{\"align\":\"left\"},\"paper_bgcolor\":\"white\",\"plot_bgcolor\":\"#E5ECF6\",\"polar\":{\"bgcolor\":\"#E5ECF6\",\"angularaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"radialaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"}},\"ternary\":{\"bgcolor\":\"#E5ECF6\",\"aaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"baxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"caxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"}},\"coloraxis\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}},\"colorscale\":{\"sequential\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]],\"sequentialminus\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]],\"diverging\":[[0,\"#8e0152\"],[0.1,\"#c51b7d\"],[0.2,\"#de77ae\"],[0.3,\"#f1b6da\"],[0.4,\"#fde0ef\"],[0.5,\"#f7f7f7\"],[0.6,\"#e6f5d0\"],[0.7,\"#b8e186\"],[0.8,\"#7fbc41\"],[0.9,\"#4d9221\"],[1,\"#276419\"]]},\"xaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\",\"title\":{\"standoff\":15},\"zerolinecolor\":\"white\",\"automargin\":true,\"zerolinewidth\":2},\"yaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\",\"title\":{\"standoff\":15},\"zerolinecolor\":\"white\",\"automargin\":true,\"zerolinewidth\":2},\"scene\":{\"xaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2},\"yaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2},\"zaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2}},\"shapedefaults\":{\"line\":{\"color\":\"#2a3f5f\"}},\"annotationdefaults\":{\"arrowcolor\":\"#2a3f5f\",\"arrowhead\":0,\"arrowwidth\":1},\"geo\":{\"bgcolor\":\"white\",\"landcolor\":\"#E5ECF6\",\"subunitcolor\":\"white\",\"showland\":true,\"showlakes\":true,\"lakecolor\":\"white\"},\"title\":{\"x\":0.05},\"mapbox\":{\"style\":\"light\"},\"margin\":{\"b\":0,\"l\":0,\"r\":0,\"t\":30}}},\"title\":{\"text\":\"Top 10 UOM Assignments by Step 5\"},\"margin\":{\"l\":100,\"t\":60},\"yaxis\":{\"title\":{\"text\":\"UOM \\u002f Quantity\"},\"autorange\":\"reversed\"},\"xaxis\":{\"title\":{\"text\":\"Number of Rows\"}},\"height\":420},                        {\"responsive\": true}                    ).then(function(){\n",
+       "                            \n",
+       "var gd = document.getElementById('c10ccd53-0354-4484-abd7-8b71b7bd189c');\n",
+       "var x = new MutationObserver(function (mutations, observer) {{\n",
+       "        var display = window.getComputedStyle(gd).display;\n",
+       "        if (!display || display === 'none') {{\n",
+       "            console.log([gd, 'removed!']);\n",
+       "            Plotly.purge(gd);\n",
+       "            observer.disconnect();\n",
+       "        }}\n",
+       "}});\n",
+       "\n",
+       "// Listen for the removal of the full notebook cells\n",
+       "var notebookContainer = gd.closest('#notebook-container');\n",
+       "if (notebookContainer) {{\n",
+       "    x.observe(notebookContainer, {childList: true});\n",
+       "}}\n",
+       "\n",
+       "// Listen for the clearing of the current output cell\n",
+       "var outputEl = gd.closest('.output');\n",
+       "if (outputEl) {{\n",
+       "    x.observe(outputEl, {childList: true});\n",
+       "}}\n",
+       "\n",
+       "                        })                };            </script>        </div>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "#| echo: false\n",
+    "top_uoms = (\n",
+    "    step5_df\n",
+    "    .group_by(['RecognizedUOM', 'RecognizedUOMQuantity'])\n",
+    "    .agg(pl.len().alias('count'))\n",
+    "    .sort('count', descending=True)\n",
+    "    .head(10)\n",
+    ")\n",
+    "\n",
+    "fig2 = go.Figure(go.Bar(\n",
+    "    y=[f\"{r['RecognizedUOM']}/{r['RecognizedUOMQuantity']}\" for r in top_uoms.iter_rows(named=True)],\n",
+    "    x=top_uoms['count'].to_list(),\n",
+    "    orientation='h',\n",
+    "    marker_color='#27ae60',\n",
+    "    text=[f\"{v:,}\" for v in top_uoms['count'].to_list()],\n",
+    "    textposition='outside',\n",
+    "))\n",
+    "fig2.update_layout(\n",
+    "    title_text='Top 10 UOM Assignments by Step 5',\n",
+    "    xaxis_title='Number of Rows',\n",
+    "    yaxis_title='UOM / Quantity',\n",
+    "    height=420,\n",
+    "    margin=dict(l=100, t=60),\n",
+    "    yaxis=dict(autorange='reversed'),\n",
+    ")\n",
+    "fig2.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "18ebb678",
+   "metadata": {},
+   "source": [
+    "---\n",
+    "\n",
+    "## Why Unrecognized Rows Stay Unrecognized"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "987b0fb4",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#| echo: false\n",
+    "no_ph   = unrecog_df.filter(pl.col('TotalPurchaseQuantity') == 0)\n",
+    "low_ph  = unrecog_df.filter((pl.col('TotalPurchaseQuantity') > 0) & (pl.col('TotalPurchaseQuantity') < 5))\n",
+    "some_ph = unrecog_df.filter(pl.col('TotalPurchaseQuantity') >= 5)\n",
+    "null_or_zero_price = unrecog_df.filter(pl.col('PriceUOM').is_null() | (pl.col('PriceUOM') == 0))\n",
+    "\n",
+    "no_ph_pct   = 100 * len(no_ph)             / unrecog\n",
+    "low_ph_pct  = 100 * len(low_ph)            / unrecog\n",
+    "some_ph_pct = 100 * len(some_ph)           / unrecog\n",
+    "price_pct   = 100 * len(null_or_zero_price) / unrecog"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ab3f4b99",
+   "metadata": {
+    "user_expressions": [
+     {
+      "expression": "f\"{price_pct:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'5.9'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{len(null_or_zero_price):,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'3,168'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     }
+    ]
+   },
+   "source": [
+    "Three root causes account for nearly all unrecognized rows:\n",
+    "\n",
+    "### 1. No usable PriceUOM (`{python} f\"{price_pct:.1f}\"` % of unrecognized)\n",
+    "\n",
+    "Step 5 requires a `PriceUOM` to compute a log-distance.  Rows where `PriceUOM` is null or\n",
+    "zero (`{python} f\"{len(null_or_zero_price):,}\"` rows) are immediately ineligible.\n",
+    "\n",
+    "### 2. Low or zero purchase history"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "12a867fa",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>            <script src=\"https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_SVG\"></script><script>if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: \"STIX-Web\"}});}</script>                <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>\n",
+       "        <script charset=\"utf-8\" src=\"https://cdn.plot.ly/plotly-3.5.0.min.js\" integrity=\"sha256-fHbNLP+GlIXN+efbQec78UkemUz3NJp7UmfGxC1tNxs=\" crossorigin=\"anonymous\"></script>                <div id=\"5f591bec-96a1-4011-a41e-969f3fbaf52e\" class=\"plotly-graph-div\" style=\"height:400px; width:100%;\"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById(\"5f591bec-96a1-4011-a41e-969f3fbaf52e\")) {                    Plotly.newPlot(                        \"5f591bec-96a1-4011-a41e-969f3fbaf52e\",                        [{\"marker\":{\"color\":[\"#e74c3c\",\"#e67e22\",\"#f39c12\"]},\"text\":[\"47\\u003cbr\\u003e(0.1%)\",\"31,400\\u003cbr\\u003e(58.4%)\",\"21,900\\u003cbr\\u003e(40.7%)\"],\"textposition\":\"outside\",\"x\":[\"No purchase history\\n(qty = 0)\",\"Very low history\\n(qty 1\\u20134)\",\"Some history\\n(qty \\u2265 5)\"],\"y\":[47,31400,21900],\"type\":\"bar\"}],                        {\"template\":{\"data\":{\"histogram2dcontour\":[{\"type\":\"histogram2dcontour\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"choropleth\":[{\"type\":\"choropleth\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"histogram2d\":[{\"type\":\"histogram2d\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"heatmap\":[{\"type\":\"heatmap\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"contourcarpet\":[{\"type\":\"contourcarpet\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"contour\":[{\"type\":\"contour\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"surface\":[{\"type\":\"surface\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"},\"colorscale\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]]}],\"mesh3d\":[{\"type\":\"mesh3d\",\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}],\"scatter\":[{\"fillpattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2},\"type\":\"scatter\"}],\"parcoords\":[{\"type\":\"parcoords\",\"line\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterpolargl\":[{\"type\":\"scatterpolargl\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"bar\":[{\"error_x\":{\"color\":\"#2a3f5f\"},\"error_y\":{\"color\":\"#2a3f5f\"},\"marker\":{\"line\":{\"color\":\"#E5ECF6\",\"width\":0.5},\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"bar\"}],\"scattergeo\":[{\"type\":\"scattergeo\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterpolar\":[{\"type\":\"scatterpolar\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"histogram\":[{\"marker\":{\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"histogram\"}],\"scattergl\":[{\"type\":\"scattergl\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatter3d\":[{\"type\":\"scatter3d\",\"line\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}},\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattermap\":[{\"type\":\"scattermap\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattermapbox\":[{\"type\":\"scattermapbox\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scatterternary\":[{\"type\":\"scatterternary\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"scattercarpet\":[{\"type\":\"scattercarpet\",\"marker\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}}}],\"carpet\":[{\"aaxis\":{\"endlinecolor\":\"#2a3f5f\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"minorgridcolor\":\"white\",\"startlinecolor\":\"#2a3f5f\"},\"baxis\":{\"endlinecolor\":\"#2a3f5f\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"minorgridcolor\":\"white\",\"startlinecolor\":\"#2a3f5f\"},\"type\":\"carpet\"}],\"table\":[{\"cells\":{\"fill\":{\"color\":\"#EBF0F8\"},\"line\":{\"color\":\"white\"}},\"header\":{\"fill\":{\"color\":\"#C8D4E3\"},\"line\":{\"color\":\"white\"}},\"type\":\"table\"}],\"barpolar\":[{\"marker\":{\"line\":{\"color\":\"#E5ECF6\",\"width\":0.5},\"pattern\":{\"fillmode\":\"overlay\",\"size\":10,\"solidity\":0.2}},\"type\":\"barpolar\"}],\"pie\":[{\"automargin\":true,\"type\":\"pie\"}]},\"layout\":{\"autotypenumbers\":\"strict\",\"colorway\":[\"#636efa\",\"#EF553B\",\"#00cc96\",\"#ab63fa\",\"#FFA15A\",\"#19d3f3\",\"#FF6692\",\"#B6E880\",\"#FF97FF\",\"#FECB52\"],\"font\":{\"color\":\"#2a3f5f\"},\"hovermode\":\"closest\",\"hoverlabel\":{\"align\":\"left\"},\"paper_bgcolor\":\"white\",\"plot_bgcolor\":\"#E5ECF6\",\"polar\":{\"bgcolor\":\"#E5ECF6\",\"angularaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"radialaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"}},\"ternary\":{\"bgcolor\":\"#E5ECF6\",\"aaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"baxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"},\"caxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\"}},\"coloraxis\":{\"colorbar\":{\"outlinewidth\":0,\"ticks\":\"\"}},\"colorscale\":{\"sequential\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]],\"sequentialminus\":[[0.0,\"#0d0887\"],[0.1111111111111111,\"#46039f\"],[0.2222222222222222,\"#7201a8\"],[0.3333333333333333,\"#9c179e\"],[0.4444444444444444,\"#bd3786\"],[0.5555555555555556,\"#d8576b\"],[0.6666666666666666,\"#ed7953\"],[0.7777777777777778,\"#fb9f3a\"],[0.8888888888888888,\"#fdca26\"],[1.0,\"#f0f921\"]],\"diverging\":[[0,\"#8e0152\"],[0.1,\"#c51b7d\"],[0.2,\"#de77ae\"],[0.3,\"#f1b6da\"],[0.4,\"#fde0ef\"],[0.5,\"#f7f7f7\"],[0.6,\"#e6f5d0\"],[0.7,\"#b8e186\"],[0.8,\"#7fbc41\"],[0.9,\"#4d9221\"],[1,\"#276419\"]]},\"xaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\",\"title\":{\"standoff\":15},\"zerolinecolor\":\"white\",\"automargin\":true,\"zerolinewidth\":2},\"yaxis\":{\"gridcolor\":\"white\",\"linecolor\":\"white\",\"ticks\":\"\",\"title\":{\"standoff\":15},\"zerolinecolor\":\"white\",\"automargin\":true,\"zerolinewidth\":2},\"scene\":{\"xaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2},\"yaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2},\"zaxis\":{\"backgroundcolor\":\"#E5ECF6\",\"gridcolor\":\"white\",\"linecolor\":\"white\",\"showbackground\":true,\"ticks\":\"\",\"zerolinecolor\":\"white\",\"gridwidth\":2}},\"shapedefaults\":{\"line\":{\"color\":\"#2a3f5f\"}},\"annotationdefaults\":{\"arrowcolor\":\"#2a3f5f\",\"arrowhead\":0,\"arrowwidth\":1},\"geo\":{\"bgcolor\":\"white\",\"landcolor\":\"#E5ECF6\",\"subunitcolor\":\"white\",\"showland\":true,\"showlakes\":true,\"lakecolor\":\"white\"},\"title\":{\"x\":0.05},\"mapbox\":{\"style\":\"light\"},\"margin\":{\"b\":0,\"l\":0,\"r\":0,\"t\":30}}},\"title\":{\"text\":\"Unrecognized Rows \\u2014 Purchase History Depth\"},\"margin\":{\"t\":60,\"b\":60},\"xaxis\":{\"title\":{\"text\":\"Purchase History Band\"}},\"yaxis\":{\"title\":{\"text\":\"Unrecognized Row Count\"}},\"height\":400},                        {\"responsive\": true}                    ).then(function(){\n",
+       "                            \n",
+       "var gd = document.getElementById('5f591bec-96a1-4011-a41e-969f3fbaf52e');\n",
+       "var x = new MutationObserver(function (mutations, observer) {{\n",
+       "        var display = window.getComputedStyle(gd).display;\n",
+       "        if (!display || display === 'none') {{\n",
+       "            console.log([gd, 'removed!']);\n",
+       "            Plotly.purge(gd);\n",
+       "            observer.disconnect();\n",
+       "        }}\n",
+       "}});\n",
+       "\n",
+       "// Listen for the removal of the full notebook cells\n",
+       "var notebookContainer = gd.closest('#notebook-container');\n",
+       "if (notebookContainer) {{\n",
+       "    x.observe(notebookContainer, {childList: true});\n",
+       "}}\n",
+       "\n",
+       "// Listen for the clearing of the current output cell\n",
+       "var outputEl = gd.closest('.output');\n",
+       "if (outputEl) {{\n",
+       "    x.observe(outputEl, {childList: true});\n",
+       "}}\n",
+       "\n",
+       "                        })                };            </script>        </div>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "#| echo: false\n",
+    "fig3 = go.Figure(go.Bar(\n",
+    "    x=['No purchase history\\n(qty = 0)', 'Very low history\\n(qty 1–4)', 'Some history\\n(qty ≥ 5)'],\n",
+    "    y=[len(no_ph), len(low_ph), len(some_ph)],\n",
+    "    marker_color=['#e74c3c', '#e67e22', '#f39c12'],\n",
+    "    text=[f'{len(no_ph):,}<br>({no_ph_pct:.1f}%)',\n",
+    "          f'{len(low_ph):,}<br>({low_ph_pct:.1f}%)',\n",
+    "          f'{len(some_ph):,}<br>({some_ph_pct:.1f}%)'],\n",
+    "    textposition='outside',\n",
+    "))\n",
+    "fig3.update_layout(\n",
+    "    title_text='Unrecognized Rows — Purchase History Depth',\n",
+    "    xaxis_title='Purchase History Band',\n",
+    "    yaxis_title='Unrecognized Row Count',\n",
+    "    height=400,\n",
+    "    margin=dict(t=60, b=60),\n",
+    ")\n",
+    "fig3.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c5549141",
+   "metadata": {
+    "user_expressions": [
+     {
+      "expression": "f\"{len(no_ph):,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'47'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{no_ph_pct:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'0.1'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{len(low_ph):,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'31,400'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{low_ph_pct:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'58.4'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{len(some_ph):,}\"",
+      "result": {
+       "data": {
+        "text/plain": "'21,900'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     },
+     {
+      "expression": "f\"{some_ph_pct:.1f}\"",
+      "result": {
+       "data": {
+        "text/plain": "'40.7'"
+       },
+       "metadata": {},
+       "status": "ok"
+      }
+     }
+    ]
+   },
+   "source": [
+    "| Purchase history | Unrecognized rows | % of total unrecognized |\n",
+    "|-----------------|------------------:|------------------------:|\n",
+    "| Zero (no history at all) | `{python} f\"{len(no_ph):,}\"` | `{python} f\"{no_ph_pct:.1f}\"` % |\n",
+    "| Very low (1–4 units) | `{python} f\"{len(low_ph):,}\"` | `{python} f\"{low_ph_pct:.1f}\"` % |\n",
+    "| Some history (≥ 5 units) | `{python} f\"{len(some_ph):,}\"` | `{python} f\"{some_ph_pct:.1f}\"` % |\n",
+    "\n",
+    ": {.striped .hover}\n",
+    "\n",
+    "- **Zero history** — DBSCAN cannot form a cluster without past transactions.  No ThresholdV2\n",
+    "  exists, and no WAP can be derived.  Step 5 has nothing to anchor its proximity calculation\n",
+    "  against.\n",
+    "- **Very low history (1–4 units)** — a single purchase creates a technically valid cluster,\n",
+    "  but with such sparse data the cluster edges may be wildly unrepresentative.  The proximity\n",
+    "  score lands below the 0.30 acceptance threshold.\n",
+    "- **Some history but low confidence** — the product has enough data for DBSCAN, but the\n",
+    "  file's `PriceUOM` is far enough from every cluster that no candidate scores ≥ 0.30.\n",
+    "  This typically means the supplier is quoting an unusual pack size not yet seen in history,\n",
+    "  or there is a unit-price vs pack-price mismatch in the file.\n",
+    "\n",
+    "### 3. PriceUOM not present in purchase history\n",
+    "\n",
+    "Some rows have a `PriceUOM` value but that price point has never appeared in the product's\n",
+    "purchase history.  With no matching cluster and no comparable WAP anchor, the inference\n",
+    "step cannot form a confident assignment — the proximity score for every candidate falls\n",
+    "below 0.30 and the row exits unrecognized.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "*See **Proposed Solutions** for how these three failure modes can be addressed.*"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3",
+   "path": "/Users/omkarmalpure/Documents/job-38552-analysis/venv-analysis/share/jupyter/kernels/python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.6"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

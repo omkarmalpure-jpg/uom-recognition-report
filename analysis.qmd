@@ -1,0 +1,282 @@
+---
+title: "Deep Dive — How Step 5 Works and Why It Succeeds"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+```{python}
+#| echo: false
+#| warning: false
+import polars as pl, re
+import plotly.graph_objects as go
+import plotly.express as px
+
+CSV = '/Users/omkarmalpure/Documents/broadjump_v2/analyze-data/UOM-38552.csv'
+df = pl.read_csv(CSV, null_values=['', 'NULL'])
+
+step5_df     = df.filter(pl.col('RecognizedUOMMatchReason').str.starts_with('Step 5').fill_null(False))
+unrecog_df   = df.filter(pl.col('IsRecognized') == False)
+total        = len(df)
+step5_count  = len(step5_df)
+unrecog      = len(unrecog_df)
+
+def extract_score(r):
+    if not r: return None
+    m = re.search(r'Proximity Score ([\d.]+)', r)
+    return float(m.group(1)) if m else None
+
+def extract_winner(r):
+    if not r: return 'Unknown'
+    if 'File UOM WAP' in r or ('FileUOM' in r and 'WAP' in r): return 'FileUOM WAP'
+    if 'WAP candidate' in r: return 'EA/1 WAP'
+    if 'KnownProductUOM' in r: return 'Known Product UOM'
+    if 'DBSCAN' in r: return 'DBSCAN'
+    return 'Other'
+
+reasons = step5_df['RecognizedUOMMatchReason'].to_list()
+step5_df = step5_df.with_columns([
+    pl.Series('parsed_score',  [extract_score(r)   for r in reasons]),
+    pl.Series('winner_source', [extract_winner(r)  for r in reasons]),
+])
+```
+
+## Part 1 — DBSCAN-Built Thresholds (ThresholdV2)
+
+### Why the old thresholds (V1) were not enough
+
+Steps 1–4 rely on hand-crafted or statistically naive min/max price ranges.  A single
+extreme purchase can widen a V1 threshold so much that it matches too broadly — or, when
+data is sparse, the range is too tight to match realistic new transactions.
+
+### What DBSCAN does differently
+
+**DBSCAN** (Density-Based Spatial Clustering of Applications with Noise) groups historical
+purchase prices for each product into *dense clusters* while treating statistical outliers
+as noise.  The resulting ThresholdV2 records store:
+
+- `MinThreshold` / `MaxThreshold` — the actual observed price range of the cluster (not a
+  hand-tuned rule).
+- `QuantityOfEAInUOM` — the UOM quantity that cluster represents.
+- `MeanEA` — a per-each price anchor used when no WAP entry is available.
+
+Because outliers are excluded, the clusters are tighter and more representative of real
+analyst expectations.  A product that historically sells as a **BX/12** at $120–$180 will
+produce one cluster with that range; a separate cluster covers the **EA** sales at $10–$15.
+
+---
+
+## Part 2 — The Proximity Inference Formula
+
+Once DBSCAN clusters exist, Step 5 must decide which cluster (UOM) best explains the
+current line's `PriceUOM`.  The key insight is that price operates on a **log scale** —
+a $5 difference matters much more at a $10 product than at a $10,000 product.
+
+### Log-distance calculation
+
+```
+logPrice = log₁₀(max(PriceUOM, 0.0001))
+logLo    = log₁₀(max(MinThreshold, 0.0001))
+logHi    = log₁₀(max(MaxThreshold, 0.0001))
+
+logDist  = 0                        if  lo ≤ price ≤ hi
+         = logPrice − logHi         if  price > hi   (above range)
+         = logLo − logPrice         if  price < lo   (below range)
+```
+
+If the price falls *inside* the cluster band, the log-distance is exactly 0 — a perfect
+match.  Outside the band the distance grows as the log ratio between the price and the
+nearest edge.
+
+### Gaussian proximity score
+
+```
+proximityScore = exp(−0.5 × (logDist / LOG_EPS)²)    where LOG_EPS = 0.25
+```
+
+This is a **Gaussian kernel on log-price space**.  `LOG_EPS = 0.25` corresponds to roughly
+a 1.8× price deviation from the cluster edge before the score drops to ~0.37.  At a 2×
+deviation the score is ~0.02 — effectively zero.
+
+**Why this mirrors analyst reasoning:**
+
+Analysts verify a UOM assignment by mentally checking whether the price is "in the right
+ballpark" for that product and pack size.  A box of 10 syringes should cost roughly 10×
+what one syringe costs.  If the file price is 3× or 20× off, the analyst rejects it.
+The proximity score formalises this intuition: prices within the cluster score near 1.0,
+prices slightly outside drop gracefully, and wildly mismatched prices score near 0.
+
+### Four candidate pools
+
+Step 5 evaluates up to four candidate sources and picks the one with the highest proximity
+score:
+
+| Source | What it is | Why it's included |
+|--------|-----------|-------------------|
+| **DBSCAN** | Cluster from ThresholdV2 | Primary signal — density-derived from history |
+| **Known Product UOM** | WAP (Weighted Avg Price) from purchase history | Covers UOMs not yet in DBSCAN clusters |
+| **EA/1 WAP** | Per-each derived from any known WAP ÷ quantity | Catches single-unit sales missing from DBSCAN |
+| **File UOM × WAP** | File-stated UOM quantity × per-each WAP | Validates when the supplier already labelled the pack size |
+
+The File UOM candidate requires a minimum score of **0.85** to be considered — a stricter
+bar because file labels are not always reliable.
+
+---
+
+## Winner-Source Breakdown
+
+```{python}
+#| echo: false
+winner_counts = step5_df['winner_source'].value_counts(sort=True)
+labels  = winner_counts['winner_source'].to_list()
+values  = winner_counts['count'].to_list()
+colors  = ['#2980b9', '#8e44ad', '#e67e22', '#16a085']
+
+fig = go.Figure(go.Bar(
+    x=labels, y=values,
+    marker_color=colors,
+    text=[f'{v:,}' for v in values],
+    textposition='outside',
+))
+fig.update_layout(
+    title_text='Step 5 Recognitions by Winning Candidate Source',
+    xaxis_title='Candidate Source',
+    yaxis_title='Number of Rows Recognized',
+    height=400,
+    margin=dict(t=60, b=40),
+)
+fig.show()
+```
+
+```{python}
+#| echo: false
+dbscan_n  = int(winner_counts.filter(pl.col('winner_source') == 'DBSCAN')['count'][0])
+known_n   = int(winner_counts.filter(pl.col('winner_source') == 'Known Product UOM')['count'][0])
+ea1_n     = int(winner_counts.filter(pl.col('winner_source') == 'EA/1 WAP')['count'][0])
+file_n    = int(winner_counts.filter(pl.col('winner_source') == 'FileUOM WAP')['count'][0])
+```
+
+| Candidate | Recognitions | % of Step 5 total |
+|-----------|-------------:|------------------:|
+| DBSCAN cluster | `{python} f"{dbscan_n:,}"` | `{python} f"{100*dbscan_n/step5_count:.1f}"` % |
+| Known Product UOM (WAP) | `{python} f"{known_n:,}"` | `{python} f"{100*known_n/step5_count:.1f}"` % |
+| EA/1 WAP candidate | `{python} f"{ea1_n:,}"` | `{python} f"{100*ea1_n/step5_count:.1f}"` % |
+| File UOM × WAP | `{python} f"{file_n:,}"` | `{python} f"{100*file_n/step5_count:.1f}"` % |
+
+: {.striped .hover}
+
+DBSCAN is the dominant winner (`{python} f"{100*dbscan_n/step5_count:.1f}"` %), validating that
+the density-based clusters are the most reliable signal.  The remaining `{python} f"{100*(step5_count-dbscan_n)/step5_count:.1f}"` %
+are split across the three supplementary pools — each of which catches a class of products
+the primary DBSCAN clusters do not yet cover.
+
+---
+
+## Top 10 Assigned UOMs (Step 5)
+
+```{python}
+#| echo: false
+top_uoms = (
+    step5_df
+    .group_by(['RecognizedUOM', 'RecognizedUOMQuantity'])
+    .agg(pl.len().alias('count'))
+    .sort('count', descending=True)
+    .head(10)
+)
+
+fig2 = go.Figure(go.Bar(
+    y=[f"{r['RecognizedUOM']}/{r['RecognizedUOMQuantity']}" for r in top_uoms.iter_rows(named=True)],
+    x=top_uoms['count'].to_list(),
+    orientation='h',
+    marker_color='#27ae60',
+    text=[f"{v:,}" for v in top_uoms['count'].to_list()],
+    textposition='outside',
+))
+fig2.update_layout(
+    title_text='Top 10 UOM Assignments by Step 5',
+    xaxis_title='Number of Rows',
+    yaxis_title='UOM / Quantity',
+    height=420,
+    margin=dict(l=100, t=60),
+    yaxis=dict(autorange='reversed'),
+)
+fig2.show()
+```
+
+---
+
+## Why Unrecognized Rows Stay Unrecognized
+
+```{python}
+#| echo: false
+no_ph   = unrecog_df.filter(pl.col('TotalPurchaseQuantity') == 0)
+low_ph  = unrecog_df.filter((pl.col('TotalPurchaseQuantity') > 0) & (pl.col('TotalPurchaseQuantity') < 5))
+some_ph = unrecog_df.filter(pl.col('TotalPurchaseQuantity') >= 5)
+null_or_zero_price = unrecog_df.filter(pl.col('PriceUOM').is_null() | (pl.col('PriceUOM') == 0))
+
+no_ph_pct   = 100 * len(no_ph)             / unrecog
+low_ph_pct  = 100 * len(low_ph)            / unrecog
+some_ph_pct = 100 * len(some_ph)           / unrecog
+price_pct   = 100 * len(null_or_zero_price) / unrecog
+```
+
+Three root causes account for nearly all unrecognized rows:
+
+### 1. No usable PriceUOM (`{python} f"{price_pct:.1f}"` % of unrecognized)
+
+Step 5 requires a `PriceUOM` to compute a log-distance.  Rows where `PriceUOM` is null or
+zero (`{python} f"{len(null_or_zero_price):,}"` rows) are immediately ineligible.
+
+### 2. Low or zero purchase history
+
+```{python}
+#| echo: false
+fig3 = go.Figure(go.Bar(
+    x=['No purchase history\n(qty = 0)', 'Very low history\n(qty 1–4)', 'Some history\n(qty ≥ 5)'],
+    y=[len(no_ph), len(low_ph), len(some_ph)],
+    marker_color=['#e74c3c', '#e67e22', '#f39c12'],
+    text=[f'{len(no_ph):,}<br>({no_ph_pct:.1f}%)',
+          f'{len(low_ph):,}<br>({low_ph_pct:.1f}%)',
+          f'{len(some_ph):,}<br>({some_ph_pct:.1f}%)'],
+    textposition='outside',
+))
+fig3.update_layout(
+    title_text='Unrecognized Rows — Purchase History Depth',
+    xaxis_title='Purchase History Band',
+    yaxis_title='Unrecognized Row Count',
+    height=400,
+    margin=dict(t=60, b=60),
+)
+fig3.show()
+```
+
+| Purchase history | Unrecognized rows | % of total unrecognized |
+|-----------------|------------------:|------------------------:|
+| Zero (no history at all) | `{python} f"{len(no_ph):,}"` | `{python} f"{no_ph_pct:.1f}"` % |
+| Very low (1–4 units) | `{python} f"{len(low_ph):,}"` | `{python} f"{low_ph_pct:.1f}"` % |
+| Some history (≥ 5 units) | `{python} f"{len(some_ph):,}"` | `{python} f"{some_ph_pct:.1f}"` % |
+
+: {.striped .hover}
+
+- **Zero history** — DBSCAN cannot form a cluster without past transactions.  No ThresholdV2
+  exists, and no WAP can be derived.  Step 5 has nothing to anchor its proximity calculation
+  against.
+- **Very low history (1–4 units)** — a single purchase creates a technically valid cluster,
+  but with such sparse data the cluster edges may be wildly unrepresentative.  The proximity
+  score lands below the 0.30 acceptance threshold.
+- **Some history but low confidence** — the product has enough data for DBSCAN, but the
+  file's `PriceUOM` is far enough from every cluster that no candidate scores ≥ 0.30.
+  This typically means the supplier is quoting an unusual pack size not yet seen in history,
+  or there is a unit-price vs pack-price mismatch in the file.
+
+### 3. PriceUOM not present in purchase history
+
+Some rows have a `PriceUOM` value but that price point has never appeared in the product's
+purchase history.  With no matching cluster and no comparable WAP anchor, the inference
+step cannot form a confident assignment — the proximity score for every candidate falls
+below 0.30 and the row exits unrecognized.
+
+---
+
+*See **Proposed Solutions** for how these three failure modes can be addressed.*

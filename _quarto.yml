@@ -1,0 +1,25 @@
+project:
+  type: website
+
+website:
+  title: "UOM Recognition Improvements"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Overview
+      - href: analysis.qmd
+        text: Deep Dive
+      - href: solutions.qmd
+        text: Proposed Solutions
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    toc-depth: 3
+
+jupyter: venv-analysis
+
+
+
