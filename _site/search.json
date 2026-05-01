@@ -49,6 +49,13 @@
     "text": "Recommended Roadmap\n\n\n\nMedium Term\n\n\nB — Similar-Product Transfer\n\n\nCo-design similarity criteria with domain analysts. Pilot on one manufacturer/category before expanding. Borrow ThresholdV2 profiles from structurally similar products with rich history.\n\n\n\n\nLonger Term\n\n\nA — Agentic Web Search\n\n\nPrototype on a small batch of zero-history products. Evaluate citation quality and build the analyst review workflow. Requires prompt engineering, de-duplication, and a write-back feedback loop before scaling.\n\n\n\n\n\n\n\n\n\n\n\n\nSolution\nReach\nEffort\nAnalyst Input Needed\n\n\n\n\nB — Similar-product transfer\n~31,400 rows\nMedium\nYes — criteria definition\n\n\nA — Agentic search\n~47 rows\nHigh\nYes — citation sign-off"
   },
   {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site"
+  },
+  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "UOM Recognition Improvements",
@@ -117,12 +124,5 @@
     "title": "Deep Dive — How Step 5 Works",
     "section": "Why Unrecognized Rows Stay Unrecognized",
     "text": "Why Unrecognized Rows Stay Unrecognized\nThree root causes account for nearly all 53,754 unresolved rows:\n\n\n\n🚫\n\n\n3,168\n\n\nNo Usable PriceUOM\n\n\nNull or zero — Step 5 cannot compute log-distance without a price\n\n\n\n\n📉\n\n\n31,447\n\n\nNo / Sparse History\n\n\nZero or 1–4 units — not enough data to form reliable DBSCAN clusters\n\n\n\n\n🎯\n\n\n21,900\n\n\nPrice Out of Range\n\n\nHistory exists but file price falls below 0.30 proximity score for every cluster\n\n\n\n\nPurchase History Depth Comparison\n\n\n                            \n                                            \n\n\nThe gap between recognized and unrecognized is sharpest in the “Some (5–49)” and “Strong (≥ 50)” bands — these rows have adequate history for DBSCAN but their file prices deviate beyond the 0.30 proximity threshold. This pattern points to price drift, new pack sizes, or supplier unit-vs-case mismatches as the primary culprit for the remaining unrecognized population.\n\nSee Proposed Solutions for concrete strategies to address each root cause."
-  },
-  {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
-    "section": "",
-    "text": "About this site"
   }
 ]

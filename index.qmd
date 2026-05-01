@@ -47,11 +47,10 @@ low_conf   = sum(1 for s in scores if s < 0.70)
   <div class="kpi-icon">✅</div>
   <div class="kpi-value">`{python} f"{recog_pct:.1f}"`%</div>
   <div class="kpi-label">Total Recognized</div>
-  <div class="kpi-sub">`{python} f"{recognized:,}"` rows</div>
 </div>
 <div class="kpi-card kpi-step5">
-  <div class="kpi-icon">🧠</div>
-  <div class="kpi-value">`{python} f"{step5_count:,}"`</div>
+  <div class="kpi-icon">⚡</div>
+  <div class="kpi-value">`{python} f"{step5_pct:.1f}"`%</div>
   <div class="kpi-label">Resolved by Step 5</div>
   <div class="kpi-sub">Inference engine</div>
 </div>
@@ -59,7 +58,6 @@ low_conf   = sum(1 for s in scores if s < 0.70)
   <div class="kpi-icon">❌</div>
   <div class="kpi-value">`{python} f"{unrec_pct:.1f}"`%</div>
   <div class="kpi-label">Unrecognized</div>
-  <div class="kpi-sub">`{python} f"{unrecognized:,}"` rows</div>
 </div>
 </div>
 
