@@ -1,9 +1,6 @@
 ---
-title: "Proposed Solutions — Closing the Unrecognized Gap"
-format:
-  html:
-    toc: true
-    toc-depth: 3
+title: "Proposed Solutions"
+subtitle: "Closing the 51.3% unrecognized gap — a prioritised roadmap"
 ---
 
 ```{python}
@@ -13,211 +10,227 @@ import polars as pl
 import plotly.graph_objects as go
 
 CSV = '/Users/omkarmalpure/Documents/broadjump_v2/analyze-data/UOM-38552.csv'
-df = pl.read_csv(CSV, null_values=['', 'NULL'])
+df  = pl.read_csv(CSV, null_values=['', 'NULL'])
 
-unrecog_df  = df.filter(pl.col('IsRecognized') == False)
-total       = len(df)
-unrecog     = len(unrecog_df)
+unrecog_df = df.filter(pl.col('IsRecognized') == False)
+total      = len(df)
+unrecog    = len(unrecog_df)
 
-no_ph       = unrecog_df.filter(pl.col('TotalPurchaseQuantity') == 0)
-low_ph      = unrecog_df.filter((pl.col('TotalPurchaseQuantity') > 0) & (pl.col('TotalPurchaseQuantity') < 5))
-some_ph     = unrecog_df.filter(pl.col('TotalPurchaseQuantity') >= 5)
-null_price  = unrecog_df.filter(pl.col('PriceUOM').is_null() | (pl.col('PriceUOM') == 0))
+no_ph   = len(unrecog_df.filter(pl.col('TotalPurchaseQuantity') == 0))
+low_ph  = len(unrecog_df.filter((pl.col('TotalPurchaseQuantity') > 0) & (pl.col('TotalPurchaseQuantity') < 5)))
+some_ph = len(unrecog_df.filter(pl.col('TotalPurchaseQuantity') >= 5))
+
+FONT  = 'Inter, sans-serif'
+SFONT = 'Space Grotesk, sans-serif'
 ```
 
-## Overview of the Unrecognized Population
-
-The `{python} f"{unrecog:,}"` rows that Step 5 could not resolve fall into three buckets, each
-requiring a different strategy:
-
-| Root cause | Rows | Strategy |
-|------------|-----:|----------|
-| No / zero purchase history | `{python} f"{len(no_ph):,}"` | External enrichment (agentic search **or** catalogue match) |
-| Very low purchase history (1–4 units) | `{python} f"{len(low_ph):,}"` | Similar-product transfer + analyst review |
-| Some history but price out of range | `{python} f"{len(some_ph):,}"` | Threshold relaxation / cluster expansion |
-
-: {.striped .hover}
-
----
-
-## Solution A — Agentic Web Search for Zero-History Products
-
-### The problem
-
-When a product has **no purchase history at all**, Step 5 has no anchors to compute
-proximity against — no DBSCAN cluster, no WAP, nothing.  The only signal available is
-the product description itself.
-
-### Proposed approach
-
-An agentic pipeline can augment these rows autonomously:
-
-1. **Query construction** — from `RecognizedProductDesc`, `RecognizedManufacturerName`,
-   and `RecognizedProductCatalogNumber` build a structured search query
-   (e.g., `"Abbott 1192ANS Anchor SwiftLock unit of measure"` or a medical-device pricing
-   database lookup).
-
-2. **Search & parse** — the agent calls a web search tool or a medical product catalogue
-   API and extracts candidate UOM labels and typical pack sizes.
-
-3. **Citation attachment** — every suggestion is stored with its source URL and snippet
-   so an analyst can verify it before accepting.
-
-4. **Confidence flagging** — the agent rates its own confidence (e.g., "found exact
-   catalog number" vs. "matched by description keyword").  Low-confidence suggestions are
-   flagged for mandatory human review before write-back.
-
-### What needs to be built and tested
-
-- Prompt engineering to reliably extract structured UOM data from unstructured web pages.
-- A de-duplication pass to collapse near-identical suggestions.
-- A review UI that surfaces the citation alongside the suggested UOM for analyst sign-off.
-- A feedback loop: accepted suggestions are written back into the purchase history so future
-  runs can resolve the same products without another search.
-
-### Trade-offs
-
-| Benefit | Risk |
-|---------|------|
-| Extends coverage to truly novel products | Hallucination / incorrect web data — must require analyst approval |
-| Provides auditable citations | Adds latency and API cost per zero-history product |
-| Self-improving over time as accepted results grow history | Needs prompt fine-tuning per product category |
-
----
-
-## Solution B — Similar-Product Transfer (Purchase History Bridge)
-
-### The problem
-
-The `{python} f"{len(low_ph):,}"` rows with very low purchase history have *some* data but not
-enough to build a reliable DBSCAN cluster or meaningful WAP.
-
-### Proposed approach
-
-Rather than going to the web, look inside the existing purchase history for **similar
-products**:
-
-1. **Similarity candidates** — for a product with sparse history, find other products
-   in the catalogue that share:
-   - Same `RecognizedManufacturerID`
-   - Same `RecognizedProductTypeID`
-   - Similar description tokens (keyword overlap or embedding distance)
-
-2. **UOM profile transfer** — the similar product's ThresholdV2 clusters and WAP are
-   borrowed as a *prior*.  The proximity scoring in Step 5 runs exactly as normal, just
-   with the borrowed thresholds substituting for the absent ones.
-
-3. **Downgraded confidence** — because the thresholds are borrowed, the resulting
-   confidence score is multiplied by a transfer discount factor (e.g., 0.80) to signal
-   to downstream consumers that this is an inferred — not directly observed — assignment.
-
-4. **Analyst review trigger** — rows resolved via transfer are surfaced in a separate
-   review queue so analysts can confirm the analogy is valid for that product category.
-
-### What needs to be discussed with analysts
-
-- **Acceptable similarity criteria** — does same manufacturer + same product type
-  constitute a strong enough analogy?  Are there categories where this would be
-  systematically misleading (e.g., two products with the same type ID but very different
-  pricing tiers)?
-- **Discount factor calibration** — how much should transferred confidence be penalised?
-- **Segment sensitivity** — certain clinical categories (e.g., implants vs. consumables)
-  may require different similarity rules.
-
-### Trade-offs
-
-| Benefit | Risk |
-|---------|------|
-| Uses existing, trusted purchase data — no external calls | Wrong analogy can propagate a systematic error |
-| Fast — no added latency | Similarity is hard to define without analyst input |
-| Gracefully degrades to unrecognized if no similar product found | Requires a new similarity index to be maintained |
-
----
-
-## Solution C — Threshold Relaxation for Out-of-Range Prices
-
-### The problem
-
-The `{python} f"{len(some_ph):,}"` rows with adequate history fail because their file `PriceUOM`
-falls outside *every* DBSCAN cluster at a distance where the proximity score is below 0.30.
-
-Common causes:
-
-- **Supplier price change** — the vendor raised or lowered prices since the last purchase,
-  shifting the quote outside the historical band.
-- **New pack size** — the supplier is now selling in a quantity not previously ordered
-  (e.g., BX/24 when history only has BX/12 and BX/100).
-- **Currency / unit mismatch** — a price-per-case was accidentally quoted as price-per-each.
-
-### Proposed approaches
-
-#### C1 — Widened acceptance window (lower LOG_EPS threshold)
-
-`LOG_EPS = 0.25` currently corresponds to a roughly 1.8× tolerance from the cluster edge.
-Increasing it to `0.40` extends tolerance to ~2.5×.  This is a global change and must be
-evaluated on a hold-out set to measure false-positive impact.
-
-#### C2 — Price-trend adjustment
-
-For products with a time-stamped purchase history, the system can detect upward or downward
-price trends and project the cluster range forward.  A product whose EA price has trended
-from $10 → $13 → $16 over 12 months is likely priced around $19 today; the cluster built
-on 12-month-old data will be offset.
-
-#### C3 — Analyst escalation queue
-
-Rows where the best candidate score is 0.20–0.30 (just below acceptance) are surfaced
-in a dedicated review queue.  The analyst sees the best DBSCAN candidate, its score, and
-the distance from the cluster edge — making a quick accept/reject decision fast.  Accepted
-overrides are recorded and used to retrain the threshold or expand the cluster.
-
----
-
-## Prioritisation Matrix
+## The Unrecognized Population
 
 ```{python}
 #| echo: false
-solutions = ['A — Agentic Web Search', 'B — Similar-Product Transfer', 'C1 — Widen LOG_EPS', 'C3 — Analyst Escalation Queue']
-coverage  = [len(no_ph), len(low_ph), int(len(some_ph)*0.4), int(len(some_ph)*0.6)]
-effort    = [4, 3, 1, 2]
-
-fig = go.Figure()
-fig.add_trace(go.Bar(name='Potential rows recovered', x=solutions, y=coverage, marker_color='#27ae60',
-                      text=[f'{c:,}' for c in coverage], textposition='outside'))
-fig.update_layout(
-    title_text='Estimated Row Coverage vs Implementation Effort',
-    yaxis_title='Rows that could be resolved',
-    height=420,
-    margin=dict(t=60, b=60),
+fig_u = go.Figure(go.Pie(
+    labels=['No/Zero Purchase History', 'Very Low History (1–4 units)', 'Price Out of DBSCAN Range'],
+    values=[no_ph, low_ph, some_ph],
+    marker=dict(
+        colors=['#ef4444', '#f97316', '#f59e0b'],
+        line=dict(color='white', width=3),
+    ),
+    textinfo='label+percent',
+    textfont=dict(family=FONT, size=11),
+    insidetextorientation='radial',
+    hole=0.5,
+    hovertemplate='<b>%{label}</b><br>%{value:,} rows<br>%{percent}<extra></extra>',
+))
+fig_u.add_annotation(
+    text=f'<b style="font-size:20px">{unrecog:,}</b><br><span style="color:#64748b;font-size:11px">Unrecognized</span>',
+    x=0.5, y=0.5, showarrow=False,
+    font=dict(family=SFONT, size=13, color='#0f172a'), align='center',
 )
-fig.show()
+fig_u.update_layout(
+    paper_bgcolor='white', plot_bgcolor='white',
+    font=dict(family=FONT, color='#334155'),
+    legend=dict(orientation='h', yanchor='bottom', y=-0.18, xanchor='center', x=0.5,
+                font=dict(size=11), bgcolor='rgba(0,0,0,0)'),
+    margin=dict(t=20, b=80, l=20, r=20),
+    height=380,
+    showlegend=True,
+)
+fig_u.show()
 ```
 
-| Solution | Potential reach | Implementation effort | Requires analyst input |
-|----------|----------------:|-----------------------:|------------------------|
-| A — Agentic search | `{python} f"{len(no_ph):,}"` rows (zero-history) | High — prompt engineering + review UI | Yes — citation sign-off |
-| B — Similar-product transfer | `{python} f"{len(low_ph):,}"` rows (low history) | Medium — similarity index + discount logic | Yes — similarity criteria definition |
-| C1 — Widen LOG_EPS | Subset of `{python} f"{len(some_ph):,}"` rows | Low — one config change + validation | No — but needs hold-out evaluation |
-| C3 — Escalation queue | Near-miss rows (score 0.20–0.30) | Low — UI change only | Yes — per-row review |
-
-: {.striped .hover}
+| Root Cause | Rows Affected | Proposed Strategy |
+|:-----------|:-------------:|:------------------|
+| No / zero purchase history | `{python} f"{no_ph:,}"` | Solution A — Agentic web search |
+| Very low history (1–4 units) | `{python} f"{low_ph:,}"` | Solution B — Similar-product transfer |
+| Price outside DBSCAN range | `{python} f"{some_ph:,}"` | Solution C — Threshold relaxation |
 
 ---
 
-## Recommended Starting Point
+## Solution A — Agentic Web Search
 
-1. **Immediate** — implement **C3 (escalation queue)** to capture near-misses with minimal
-   engineering.  This recovers the easiest unrecognized rows and builds analyst feedback
-   data that can be used to calibrate all other solutions.
+<div class="solution-cards">
+<div class="sol-card sol-a">
+<div class="sol-header">
+  <div class="sol-icon">🤖</div>
+  <div class="sol-top">
+    <div class="sol-label">Solution A · Zero-History Products</div>
+    <div class="sol-title">Agentic Web Search with Citation</div>
+    <div class="sol-reach">Targets <strong>`{python} f"{no_ph:,}"`</strong> rows with no purchase history</div>
+  </div>
+</div>
+<div class="sol-body">
+<p>When a product has no purchase history at all, Step 5 has no anchors. The only signal available is the product description, manufacturer, and catalog number. An agentic pipeline can autonomously enrich these rows:</p>
+<ul class="sol-steps">
+  <li data-n="1"><strong>Query construction</strong> — build a structured search from <code>RecognizedProductDesc</code>, <code>RecognizedManufacturerName</code>, and <code>RecognizedProductCatalogNumber</code>.</li>
+  <li data-n="2"><strong>Search & extract</strong> — agent calls a web search tool or medical-device catalogue API and extracts candidate UOM labels and typical pack sizes.</li>
+  <li data-n="3"><strong>Citation attachment</strong> — every suggestion is stored with its source URL so analysts can verify before accepting.</li>
+  <li data-n="4"><strong>Confidence flagging</strong> — agent rates its own confidence ("exact catalog number match" vs. "description keyword match"). Low-confidence results require mandatory analyst sign-off before write-back.</li>
+  <li data-n="5"><strong>Feedback loop</strong> — accepted suggestions are written to purchase history so future runs resolve the same products without a search.</li>
+</ul>
+<div class="sol-tags">
+  <span class="sol-tag effort-high">High effort</span>
+  <span class="sol-tag">Requires analyst review</span>
+  <span class="sol-tag">Self-improving over time</span>
+  <span class="sol-tag">Needs prompt fine-tuning</span>
+</div>
+</div>
+</div>
+</div>
 
-2. **Short term** — evaluate **C1 (LOG_EPS relaxation)** on a hold-out set.  If the
-   false-positive rate is acceptable, deploy it to recover a large portion of the
-   out-of-range rows automatically.
+---
 
-3. **Medium term** — design and pilot **Solution B (similar-product transfer)** with
-   analysts.  The similarity criteria need to be co-designed with domain experts before
-   any automated write-back.
+## Solution B — Similar-Product Transfer
 
-4. **Longer term** — prototype **Solution A (agentic search)** on a small batch of
-   zero-history products, evaluate citation quality, and build the review workflow before
-   scaling.
+<div class="solution-cards">
+<div class="sol-card sol-b">
+<div class="sol-header">
+  <div class="sol-icon">🔗</div>
+  <div class="sol-top">
+    <div class="sol-label">Solution B · Sparse History Products</div>
+    <div class="sol-title">Purchase History Bridge via Product Similarity</div>
+    <div class="sol-reach">Targets <strong>`{python} f"{low_ph:,}"`</strong> rows with 1–4 unit history</div>
+  </div>
+</div>
+<div class="sol-body">
+<p>Rather than going to the web, look inside existing purchase history for structurally similar products and borrow their ThresholdV2 clusters as a prior:</p>
+<ul class="sol-steps">
+  <li data-n="1"><strong>Similarity candidates</strong> — find products in the catalogue sharing the same <code>RecognizedManufacturerID</code>, same <code>RecognizedProductTypeID</code>, and similar description tokens (keyword overlap or embedding distance).</li>
+  <li data-n="2"><strong>UOM profile transfer</strong> — the similar product's ThresholdV2 clusters and WAP are borrowed. The proximity scoring in Step 5 runs exactly as normal, using the borrowed thresholds.</li>
+  <li data-n="3"><strong>Downgraded confidence</strong> — the resulting score is multiplied by a transfer discount factor (e.g., 0.80) to signal the assignment is inferred, not directly observed.</li>
+  <li data-n="4"><strong>Analyst review queue</strong> — transferred rows surface in a separate queue for analysts to confirm the analogy is valid before the result propagates.</li>
+</ul>
+<div class="sol-tags">
+  <span class="sol-tag effort-med">Medium effort</span>
+  <span class="sol-tag">Needs similarity criteria co-design with analysts</span>
+  <span class="sol-tag">No external API calls</span>
+</div>
+</div>
+</div>
+</div>
+
+### Key questions for analysts
+
+Before implementing, these must be answered collaboratively:
+
+- Does same **manufacturer + product type** constitute a strong enough analogy, or are there product categories where this would be systematically misleading?
+- What **discount factor** appropriately penalises borrowed confidence?
+- Are there clinical categories (implants vs. consumables) that require different similarity criteria?
+
+---
+
+## Solution C — Threshold Relaxation
+
+<div class="solution-cards">
+<div class="sol-card sol-c">
+<div class="sol-header">
+  <div class="sol-icon">⚙️</div>
+  <div class="sol-top">
+    <div class="sol-label">Solution C · Price Out-of-Range Products</div>
+    <div class="sol-title">Widen the Proximity Window + Analyst Escalation</div>
+    <div class="sol-reach">Targets <strong>`{python} f"{some_ph:,}"`</strong> rows with history but score &lt; 0.30</div>
+  </div>
+</div>
+<div class="sol-body">
+<p>These rows have adequate purchase history but the file's <code>PriceUOM</code> lands too far from every DBSCAN cluster. Common causes: supplier price changes, new pack sizes, or unit vs. case mismatches. Two complementary approaches:</p>
+<ul class="sol-steps">
+  <li data-n="C1"><strong>Widen LOG_EPS</strong> — raising <code>LOG_EPS</code> from 0.25 → 0.40 extends the tolerance from ~1.78× to ~2.51× price deviation. This is a global change; must be validated on a hold-out set to measure false-positive impact before deployment.</li>
+  <li data-n="C2"><strong>Price-trend adjustment</strong> — for products with time-stamped history, detect upward/downward price trends and project cluster ranges forward. A product trending $10→$13→$16 is likely ~$19 today; the 12-month-old cluster misses it.</li>
+  <li data-n="C3"><strong>Analyst escalation queue</strong> — rows where the best candidate scores 0.20–0.30 (just below acceptance) are surfaced to analysts with the best DBSCAN candidate and distance from the cluster edge visible. Fast accept/reject with feedback loops back to threshold calibration.</li>
+</ul>
+<div class="sol-tags">
+  <span class="sol-tag effort-low">C1: Low effort (config change)</span>
+  <span class="sol-tag effort-low">C3: Low effort (UI change)</span>
+  <span class="sol-tag effort-med">C2: Medium effort</span>
+</div>
+</div>
+</div>
+</div>
+
+---
+
+## Coverage Comparison
+
+```{python}
+#| echo: false
+sol_labels = [
+    'C3 — Escalation Queue<br><i style="color:#94a3b8;font-size:10px">Near-miss rows, score 0.20–0.30</i>',
+    'C1 — Widen LOG_EPS<br><i style="color:#94a3b8;font-size:10px">Config change + hold-out validation</i>',
+    'B — Similar-Product Transfer<br><i style="color:#94a3b8;font-size:10px">Sparse history bridge</i>',
+    'A — Agentic Web Search<br><i style="color:#94a3b8;font-size:10px">Zero-history enrichment</i>',
+]
+sol_values = [int(some_ph*0.6), int(some_ph*0.4), low_ph, no_ph]
+sol_colors = ['#10b981', '#06b6d4', '#4f46e5', '#8b5cf6']
+effort_map = ['Low', 'Low', 'Medium', 'High']
+
+fig_s = go.Figure()
+fig_s.add_trace(go.Bar(
+    y=sol_labels, x=sol_values, orientation='h',
+    marker=dict(color=sol_colors, line=dict(width=0)),
+    text=[f'  ~{v:,} rows' for v in sol_values],
+    textposition='outside',
+    textfont=dict(family=FONT, size=11, color='#475569'),
+    hovertemplate='<b>%{y}</b><br>~%{x:,} rows potentially recovered<extra></extra>',
+    cliponaxis=False,
+))
+fig_s.update_layout(
+    paper_bgcolor='white', plot_bgcolor='#fafafa',
+    font=dict(family=FONT, color='#334155', size=11),
+    xaxis=dict(
+        gridcolor='#f1f5f9', linecolor='#e2e8f0',
+        tickfont=dict(color='#64748b', size=11),
+        range=[0, max(sol_values) * 1.22],
+        title='Estimated Rows Recoverable',
+    ),
+    yaxis=dict(
+        linecolor='#e2e8f0',
+        tickfont=dict(family=FONT, size=11, color='#1e293b'),
+        autorange='reversed', title='',
+    ),
+    margin=dict(t=20, b=50, l=260, r=110),
+    bargap=0.35, height=340,
+    hoverlabel=dict(bgcolor='#0f172a', font_color='white', font_family=FONT),
+)
+fig_s.show()
+```
+
+---
+
+## Recommended Roadmap
+
+<div class="roadmap">
+<div class="roadmap-item">
+  <div class="roadmap-horizon">Medium Term</div>
+  <div class="roadmap-title">B — Similar-Product Transfer</div>
+  <div class="roadmap-desc">Co-design similarity criteria with domain analysts. Pilot on one manufacturer/category before expanding. Borrow ThresholdV2 profiles from structurally similar products with rich history.</div>
+</div>
+<div class="roadmap-item">
+  <div class="roadmap-horizon">Longer Term</div>
+  <div class="roadmap-title">A — Agentic Web Search</div>
+  <div class="roadmap-desc">Prototype on a small batch of zero-history products. Evaluate citation quality and build the analyst review workflow. Requires prompt engineering, de-duplication, and a write-back feedback loop before scaling.</div>
+</div>
+</div>
+
+| Solution | Reach | Effort | Analyst Input Needed |
+|:---------|------:|:------:|:--------------------:|
+| B — Similar-product transfer | `{python} f"~{low_ph:,}"` rows | Medium | Yes — criteria definition |
+| A — Agentic search | `{python} f"~{no_ph:,}"` rows | High | Yes — citation sign-off |

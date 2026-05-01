@@ -2,127 +2,127 @@
   {
     "objectID": "solutions.html",
     "href": "solutions.html",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
+    "title": "Proposed Solutions",
     "section": "",
-    "text": "The 53,754 rows that Step 5 could not resolve fall into three buckets, each requiring a different strategy:\n\n\n\n\n\n\n\n\nRoot cause\nRows\nStrategy\n\n\n\n\nNo / zero purchase history\n47\nExternal enrichment (agentic search or catalogue match)\n\n\nVery low purchase history (1–4 units)\n31,400\nSimilar-product transfer + analyst review\n\n\nSome history but price out of range\n21,900\nThreshold relaxation / cluster expansion"
+    "text": "Root Cause\nRows Affected\nProposed Strategy\n\n\n\n\nNo / zero purchase history\n47\nSolution A — Agentic web search\n\n\nVery low history (1–4 units)\n31,400\nSolution B — Similar-product transfer\n\n\nPrice outside DBSCAN range\n21,900\nSolution C — Threshold relaxation"
   },
   {
-    "objectID": "solutions.html#overview-of-the-unrecognized-population",
-    "href": "solutions.html#overview-of-the-unrecognized-population",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
+    "objectID": "solutions.html#the-unrecognized-population",
+    "href": "solutions.html#the-unrecognized-population",
+    "title": "Proposed Solutions",
     "section": "",
-    "text": "The 53,754 rows that Step 5 could not resolve fall into three buckets, each requiring a different strategy:\n\n\n\n\n\n\n\n\nRoot cause\nRows\nStrategy\n\n\n\n\nNo / zero purchase history\n47\nExternal enrichment (agentic search or catalogue match)\n\n\nVery low purchase history (1–4 units)\n31,400\nSimilar-product transfer + analyst review\n\n\nSome history but price out of range\n21,900\nThreshold relaxation / cluster expansion"
+    "text": "Root Cause\nRows Affected\nProposed Strategy\n\n\n\n\nNo / zero purchase history\n47\nSolution A — Agentic web search\n\n\nVery low history (1–4 units)\n31,400\nSolution B — Similar-product transfer\n\n\nPrice outside DBSCAN range\n21,900\nSolution C — Threshold relaxation"
   },
   {
-    "objectID": "solutions.html#solution-a-agentic-web-search-for-zero-history-products",
-    "href": "solutions.html#solution-a-agentic-web-search-for-zero-history-products",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
-    "section": "Solution A — Agentic Web Search for Zero-History Products",
-    "text": "Solution A — Agentic Web Search for Zero-History Products\n\nThe problem\nWhen a product has no purchase history at all, Step 5 has no anchors to compute proximity against — no DBSCAN cluster, no WAP, nothing. The only signal available is the product description itself.\n\n\nProposed approach\nAn agentic pipeline can augment these rows autonomously:\n\nQuery construction — from RecognizedProductDesc, RecognizedManufacturerName, and RecognizedProductCatalogNumber build a structured search query (e.g., \"Abbott 1192ANS Anchor SwiftLock unit of measure\" or a medical-device pricing database lookup).\nSearch & parse — the agent calls a web search tool or a medical product catalogue API and extracts candidate UOM labels and typical pack sizes.\nCitation attachment — every suggestion is stored with its source URL and snippet so an analyst can verify it before accepting.\nConfidence flagging — the agent rates its own confidence (e.g., “found exact catalog number” vs. “matched by description keyword”). Low-confidence suggestions are flagged for mandatory human review before write-back.\n\n\n\nWhat needs to be built and tested\n\nPrompt engineering to reliably extract structured UOM data from unstructured web pages.\nA de-duplication pass to collapse near-identical suggestions.\nA review UI that surfaces the citation alongside the suggested UOM for analyst sign-off.\nA feedback loop: accepted suggestions are written back into the purchase history so future runs can resolve the same products without another search.\n\n\n\nTrade-offs\n\n\n\n\n\n\n\nBenefit\nRisk\n\n\n\n\nExtends coverage to truly novel products\nHallucination / incorrect web data — must require analyst approval\n\n\nProvides auditable citations\nAdds latency and API cost per zero-history product\n\n\nSelf-improving over time as accepted results grow history\nNeeds prompt fine-tuning per product category"
+    "objectID": "solutions.html#solution-a-agentic-web-search",
+    "href": "solutions.html#solution-a-agentic-web-search",
+    "title": "Proposed Solutions",
+    "section": "Solution A — Agentic Web Search",
+    "text": "Solution A — Agentic Web Search\n\n\n\n\n🤖\n\n\n&lt;div class=\"sol-label\"&gt;Solution A · Zero-History Products&lt;/div&gt;\n&lt;div class=\"sol-title\"&gt;Agentic Web Search with Citation&lt;/div&gt;\n&lt;div class=\"sol-reach\"&gt;Targets &lt;strong&gt;47&lt;/strong&gt; rows with no purchase history&lt;/div&gt;\n\n\n\n\nWhen a product has no purchase history at all, Step 5 has no anchors. The only signal available is the product description, manufacturer, and catalog number. An agentic pipeline can autonomously enrich these rows:\n\n\n\nQuery construction — build a structured search from RecognizedProductDesc, RecognizedManufacturerName, and RecognizedProductCatalogNumber.\n\n\nSearch & extract — agent calls a web search tool or medical-device catalogue API and extracts candidate UOM labels and typical pack sizes.\n\n\nCitation attachment — every suggestion is stored with its source URL so analysts can verify before accepting.\n\n\nConfidence flagging — agent rates its own confidence (“exact catalog number match” vs. “description keyword match”). Low-confidence results require mandatory analyst sign-off before write-back.\n\n\nFeedback loop — accepted suggestions are written to purchase history so future runs resolve the same products without a search.\n\n\n\nHigh effort Requires analyst review Self-improving over time Needs prompt fine-tuning"
   },
   {
-    "objectID": "solutions.html#solution-b-similar-product-transfer-purchase-history-bridge",
-    "href": "solutions.html#solution-b-similar-product-transfer-purchase-history-bridge",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
-    "section": "Solution B — Similar-Product Transfer (Purchase History Bridge)",
-    "text": "Solution B — Similar-Product Transfer (Purchase History Bridge)\n\nThe problem\nThe 31,400 rows with very low purchase history have some data but not enough to build a reliable DBSCAN cluster or meaningful WAP.\n\n\nProposed approach\nRather than going to the web, look inside the existing purchase history for similar products:\n\nSimilarity candidates — for a product with sparse history, find other products in the catalogue that share:\n\nSame RecognizedManufacturerID\nSame RecognizedProductTypeID\nSimilar description tokens (keyword overlap or embedding distance)\n\nUOM profile transfer — the similar product’s ThresholdV2 clusters and WAP are borrowed as a prior. The proximity scoring in Step 5 runs exactly as normal, just with the borrowed thresholds substituting for the absent ones.\nDowngraded confidence — because the thresholds are borrowed, the resulting confidence score is multiplied by a transfer discount factor (e.g., 0.80) to signal to downstream consumers that this is an inferred — not directly observed — assignment.\nAnalyst review trigger — rows resolved via transfer are surfaced in a separate review queue so analysts can confirm the analogy is valid for that product category.\n\n\n\nWhat needs to be discussed with analysts\n\nAcceptable similarity criteria — does same manufacturer + same product type constitute a strong enough analogy? Are there categories where this would be systematically misleading (e.g., two products with the same type ID but very different pricing tiers)?\nDiscount factor calibration — how much should transferred confidence be penalised?\nSegment sensitivity — certain clinical categories (e.g., implants vs. consumables) may require different similarity rules.\n\n\n\nTrade-offs\n\n\n\n\n\n\n\nBenefit\nRisk\n\n\n\n\nUses existing, trusted purchase data — no external calls\nWrong analogy can propagate a systematic error\n\n\nFast — no added latency\nSimilarity is hard to define without analyst input\n\n\nGracefully degrades to unrecognized if no similar product found\nRequires a new similarity index to be maintained"
+    "objectID": "solutions.html#solution-b-similar-product-transfer",
+    "href": "solutions.html#solution-b-similar-product-transfer",
+    "title": "Proposed Solutions",
+    "section": "Solution B — Similar-Product Transfer",
+    "text": "Solution B — Similar-Product Transfer\n\n\n\n\n🔗\n\n\n&lt;div class=\"sol-label\"&gt;Solution B · Sparse History Products&lt;/div&gt;\n&lt;div class=\"sol-title\"&gt;Purchase History Bridge via Product Similarity&lt;/div&gt;\n&lt;div class=\"sol-reach\"&gt;Targets &lt;strong&gt;31\\,400&lt;/strong&gt; rows with 1–4 unit history&lt;/div&gt;\n\n\n\n\nRather than going to the web, look inside existing purchase history for structurally similar products and borrow their ThresholdV2 clusters as a prior:\n\n\n\nSimilarity candidates — find products in the catalogue sharing the same RecognizedManufacturerID, same RecognizedProductTypeID, and similar description tokens (keyword overlap or embedding distance).\n\n\nUOM profile transfer — the similar product’s ThresholdV2 clusters and WAP are borrowed. The proximity scoring in Step 5 runs exactly as normal, using the borrowed thresholds.\n\n\nDowngraded confidence — the resulting score is multiplied by a transfer discount factor (e.g., 0.80) to signal the assignment is inferred, not directly observed.\n\n\nAnalyst review queue — transferred rows surface in a separate queue for analysts to confirm the analogy is valid before the result propagates.\n\n\n\nMedium effort Needs similarity criteria co-design with analysts No external API calls\n\n\n\n\n\nKey questions for analysts\nBefore implementing, these must be answered collaboratively:\n\nDoes same manufacturer + product type constitute a strong enough analogy, or are there product categories where this would be systematically misleading?\nWhat discount factor appropriately penalises borrowed confidence?\nAre there clinical categories (implants vs. consumables) that require different similarity criteria?"
   },
   {
-    "objectID": "solutions.html#solution-c-threshold-relaxation-for-out-of-range-prices",
-    "href": "solutions.html#solution-c-threshold-relaxation-for-out-of-range-prices",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
-    "section": "Solution C — Threshold Relaxation for Out-of-Range Prices",
-    "text": "Solution C — Threshold Relaxation for Out-of-Range Prices\n\nThe problem\nThe 21,900 rows with adequate history fail because their file PriceUOM falls outside every DBSCAN cluster at a distance where the proximity score is below 0.30.\nCommon causes:\n\nSupplier price change — the vendor raised or lowered prices since the last purchase, shifting the quote outside the historical band.\nNew pack size — the supplier is now selling in a quantity not previously ordered (e.g., BX/24 when history only has BX/12 and BX/100).\nCurrency / unit mismatch — a price-per-case was accidentally quoted as price-per-each.\n\n\n\nProposed approaches\n\nC1 — Widened acceptance window (lower LOG_EPS threshold)\nLOG_EPS = 0.25 currently corresponds to a roughly 1.8× tolerance from the cluster edge. Increasing it to 0.40 extends tolerance to ~2.5×. This is a global change and must be evaluated on a hold-out set to measure false-positive impact.\n\n\nC2 — Price-trend adjustment\nFor products with a time-stamped purchase history, the system can detect upward or downward price trends and project the cluster range forward. A product whose EA price has trended from $10 → $13 → $16 over 12 months is likely priced around $19 today; the cluster built on 12-month-old data will be offset.\n\n\nC3 — Analyst escalation queue\nRows where the best candidate score is 0.20–0.30 (just below acceptance) are surfaced in a dedicated review queue. The analyst sees the best DBSCAN candidate, its score, and the distance from the cluster edge — making a quick accept/reject decision fast. Accepted overrides are recorded and used to retrain the threshold or expand the cluster."
+    "objectID": "solutions.html#solution-c-threshold-relaxation",
+    "href": "solutions.html#solution-c-threshold-relaxation",
+    "title": "Proposed Solutions",
+    "section": "Solution C — Threshold Relaxation",
+    "text": "Solution C — Threshold Relaxation\n\n\n\n\n⚙️\n\n\n&lt;div class=\"sol-label\"&gt;Solution C · Price Out-of-Range Products&lt;/div&gt;\n&lt;div class=\"sol-title\"&gt;Widen the Proximity Window + Analyst Escalation&lt;/div&gt;\n&lt;div class=\"sol-reach\"&gt;Targets &lt;strong&gt;21\\,900&lt;/strong&gt; rows with history but score &lt; 0.30&lt;/div&gt;\n\n\n\n\nThese rows have adequate purchase history but the file’s PriceUOM lands too far from every DBSCAN cluster. Common causes: supplier price changes, new pack sizes, or unit vs. case mismatches. Two complementary approaches:\n\n\n\nWiden LOG_EPS — raising LOG_EPS from 0.25 → 0.40 extends the tolerance from ~1.78× to ~2.51× price deviation. This is a global change; must be validated on a hold-out set to measure false-positive impact before deployment.\n\n\nPrice-trend adjustment — for products with time-stamped history, detect upward/downward price trends and project cluster ranges forward. A product trending $10→$13→$16 is likely ~$19 today; the 12-month-old cluster misses it.\n\n\nAnalyst escalation queue — rows where the best candidate scores 0.20–0.30 (just below acceptance) are surfaced to analysts with the best DBSCAN candidate and distance from the cluster edge visible. Fast accept/reject with feedback loops back to threshold calibration.\n\n\n\nC1: Low effort (config change) C3: Low effort (UI change) C2: Medium effort"
   },
   {
-    "objectID": "solutions.html#prioritisation-matrix",
-    "href": "solutions.html#prioritisation-matrix",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
-    "section": "Prioritisation Matrix",
-    "text": "Prioritisation Matrix\n\n\n                            \n                                            \n\n\n\n\n\n\n\n\n\n\n\nSolution\nPotential reach\nImplementation effort\nRequires analyst input\n\n\n\n\nA — Agentic search\n47 rows (zero-history)\nHigh — prompt engineering + review UI\nYes — citation sign-off\n\n\nB — Similar-product transfer\n31,400 rows (low history)\nMedium — similarity index + discount logic\nYes — similarity criteria definition\n\n\nC1 — Widen LOG_EPS\nSubset of 21,900 rows\nLow — one config change + validation\nNo — but needs hold-out evaluation\n\n\nC3 — Escalation queue\nNear-miss rows (score 0.20–0.30)\nLow — UI change only\nYes — per-row review"
+    "objectID": "solutions.html#coverage-comparison",
+    "href": "solutions.html#coverage-comparison",
+    "title": "Proposed Solutions",
+    "section": "Coverage Comparison",
+    "text": "Coverage Comparison"
   },
   {
-    "objectID": "solutions.html#recommended-starting-point",
-    "href": "solutions.html#recommended-starting-point",
-    "title": "Proposed Solutions — Closing the Unrecognized Gap",
-    "section": "Recommended Starting Point",
-    "text": "Recommended Starting Point\n\nImmediate — implement C3 (escalation queue) to capture near-misses with minimal engineering. This recovers the easiest unrecognized rows and builds analyst feedback data that can be used to calibrate all other solutions.\nShort term — evaluate C1 (LOG_EPS relaxation) on a hold-out set. If the false-positive rate is acceptable, deploy it to recover a large portion of the out-of-range rows automatically.\nMedium term — design and pilot Solution B (similar-product transfer) with analysts. The similarity criteria need to be co-designed with domain experts before any automated write-back.\nLonger term — prototype Solution A (agentic search) on a small batch of zero-history products, evaluate citation quality, and build the review workflow before scaling."
-  },
-  {
-    "objectID": "analysis.html",
-    "href": "analysis.html",
-    "title": "Deep Dive — How Step 5 Works and Why It Succeeds",
-    "section": "",
-    "text": "Steps 1–4 rely on hand-crafted or statistically naive min/max price ranges. A single extreme purchase can widen a V1 threshold so much that it matches too broadly — or, when data is sparse, the range is too tight to match realistic new transactions.\n\n\n\nDBSCAN (Density-Based Spatial Clustering of Applications with Noise) groups historical purchase prices for each product into dense clusters while treating statistical outliers as noise. The resulting ThresholdV2 records store:\n\nMinThreshold / MaxThreshold — the actual observed price range of the cluster (not a hand-tuned rule).\nQuantityOfEAInUOM — the UOM quantity that cluster represents.\nMeanEA — a per-each price anchor used when no WAP entry is available.\n\nBecause outliers are excluded, the clusters are tighter and more representative of real analyst expectations. A product that historically sells as a BX/12 at $120–$180 will produce one cluster with that range; a separate cluster covers the EA sales at $10–$15."
-  },
-  {
-    "objectID": "analysis.html#part-1-dbscan-built-thresholds-thresholdv2",
-    "href": "analysis.html#part-1-dbscan-built-thresholds-thresholdv2",
-    "title": "Deep Dive — How Step 5 Works and Why It Succeeds",
-    "section": "",
-    "text": "Steps 1–4 rely on hand-crafted or statistically naive min/max price ranges. A single extreme purchase can widen a V1 threshold so much that it matches too broadly — or, when data is sparse, the range is too tight to match realistic new transactions.\n\n\n\nDBSCAN (Density-Based Spatial Clustering of Applications with Noise) groups historical purchase prices for each product into dense clusters while treating statistical outliers as noise. The resulting ThresholdV2 records store:\n\nMinThreshold / MaxThreshold — the actual observed price range of the cluster (not a hand-tuned rule).\nQuantityOfEAInUOM — the UOM quantity that cluster represents.\nMeanEA — a per-each price anchor used when no WAP entry is available.\n\nBecause outliers are excluded, the clusters are tighter and more representative of real analyst expectations. A product that historically sells as a BX/12 at $120–$180 will produce one cluster with that range; a separate cluster covers the EA sales at $10–$15."
-  },
-  {
-    "objectID": "analysis.html#part-2-the-proximity-inference-formula",
-    "href": "analysis.html#part-2-the-proximity-inference-formula",
-    "title": "Deep Dive — How Step 5 Works and Why It Succeeds",
-    "section": "Part 2 — The Proximity Inference Formula",
-    "text": "Part 2 — The Proximity Inference Formula\nOnce DBSCAN clusters exist, Step 5 must decide which cluster (UOM) best explains the current line’s PriceUOM. The key insight is that price operates on a log scale — a $5 difference matters much more at a $10 product than at a $10,000 product.\n\nLog-distance calculation\nlogPrice = log₁₀(max(PriceUOM, 0.0001))\nlogLo    = log₁₀(max(MinThreshold, 0.0001))\nlogHi    = log₁₀(max(MaxThreshold, 0.0001))\n\nlogDist  = 0                        if  lo ≤ price ≤ hi\n         = logPrice − logHi         if  price &gt; hi   (above range)\n         = logLo − logPrice         if  price &lt; lo   (below range)\nIf the price falls inside the cluster band, the log-distance is exactly 0 — a perfect match. Outside the band the distance grows as the log ratio between the price and the nearest edge.\n\n\nGaussian proximity score\nproximityScore = exp(−0.5 × (logDist / LOG_EPS)²)    where LOG_EPS = 0.25\nThis is a Gaussian kernel on log-price space. LOG_EPS = 0.25 corresponds to roughly a 1.8× price deviation from the cluster edge before the score drops to ~0.37. At a 2× deviation the score is ~0.02 — effectively zero.\nWhy this mirrors analyst reasoning:\nAnalysts verify a UOM assignment by mentally checking whether the price is “in the right ballpark” for that product and pack size. A box of 10 syringes should cost roughly 10× what one syringe costs. If the file price is 3× or 20× off, the analyst rejects it. The proximity score formalises this intuition: prices within the cluster score near 1.0, prices slightly outside drop gracefully, and wildly mismatched prices score near 0.\n\n\nFour candidate pools\nStep 5 evaluates up to four candidate sources and picks the one with the highest proximity score:\n\n\n\n\n\n\n\n\nSource\nWhat it is\nWhy it’s included\n\n\n\n\nDBSCAN\nCluster from ThresholdV2\nPrimary signal — density-derived from history\n\n\nKnown Product UOM\nWAP (Weighted Avg Price) from purchase history\nCovers UOMs not yet in DBSCAN clusters\n\n\nEA/1 WAP\nPer-each derived from any known WAP ÷ quantity\nCatches single-unit sales missing from DBSCAN\n\n\nFile UOM × WAP\nFile-stated UOM quantity × per-each WAP\nValidates when the supplier already labelled the pack size\n\n\n\nThe File UOM candidate requires a minimum score of 0.85 to be considered — a stricter bar because file labels are not always reliable."
-  },
-  {
-    "objectID": "analysis.html#winner-source-breakdown",
-    "href": "analysis.html#winner-source-breakdown",
-    "title": "Deep Dive — How Step 5 Works and Why It Succeeds",
-    "section": "Winner-Source Breakdown",
-    "text": "Winner-Source Breakdown\n\n\n                            \n                                            \n\n\n\n\n\nCandidate\nRecognitions\n% of Step 5 total\n\n\n\n\nDBSCAN cluster\n47,554\n93.6 %\n\n\nKnown Product UOM (WAP)\n1,300\n2.6 %\n\n\nEA/1 WAP candidate\n1,128\n2.2 %\n\n\nFile UOM × WAP\n816\n1.6 %\n\n\n\nDBSCAN is the dominant winner (93.6 %), validating that the density-based clusters are the most reliable signal. The remaining 6.4 % are split across the three supplementary pools — each of which catches a class of products the primary DBSCAN clusters do not yet cover."
-  },
-  {
-    "objectID": "analysis.html#top-10-assigned-uoms-step-5",
-    "href": "analysis.html#top-10-assigned-uoms-step-5",
-    "title": "Deep Dive — How Step 5 Works and Why It Succeeds",
-    "section": "Top 10 Assigned UOMs (Step 5)",
-    "text": "Top 10 Assigned UOMs (Step 5)"
-  },
-  {
-    "objectID": "analysis.html#why-unrecognized-rows-stay-unrecognized",
-    "href": "analysis.html#why-unrecognized-rows-stay-unrecognized",
-    "title": "Deep Dive — How Step 5 Works and Why It Succeeds",
-    "section": "Why Unrecognized Rows Stay Unrecognized",
-    "text": "Why Unrecognized Rows Stay Unrecognized\nThree root causes account for nearly all unrecognized rows:\n\n1. No usable PriceUOM (5.9 % of unrecognized)\nStep 5 requires a PriceUOM to compute a log-distance. Rows where PriceUOM is null or zero (3,168 rows) are immediately ineligible.\n\n\n2. Low or zero purchase history\n\n\n                            \n                                            \n\n\n\n\n\nPurchase history\nUnrecognized rows\n% of total unrecognized\n\n\n\n\nZero (no history at all)\n47\n0.1 %\n\n\nVery low (1–4 units)\n31,400\n58.4 %\n\n\nSome history (≥ 5 units)\n21,900\n40.7 %\n\n\n\n\nZero history — DBSCAN cannot form a cluster without past transactions. No ThresholdV2 exists, and no WAP can be derived. Step 5 has nothing to anchor its proximity calculation against.\nVery low history (1–4 units) — a single purchase creates a technically valid cluster, but with such sparse data the cluster edges may be wildly unrepresentative. The proximity score lands below the 0.30 acceptance threshold.\nSome history but low confidence — the product has enough data for DBSCAN, but the file’s PriceUOM is far enough from every cluster that no candidate scores ≥ 0.30. This typically means the supplier is quoting an unusual pack size not yet seen in history, or there is a unit-price vs pack-price mismatch in the file.\n\n\n\n3. PriceUOM not present in purchase history\nSome rows have a PriceUOM value but that price point has never appeared in the product’s purchase history. With no matching cluster and no comparable WAP anchor, the inference step cannot form a confident assignment — the proximity score for every candidate falls below 0.30 and the row exits unrecognized.\n\nSee Proposed Solutions for how these three failure modes can be addressed."
+    "objectID": "solutions.html#recommended-roadmap",
+    "href": "solutions.html#recommended-roadmap",
+    "title": "Proposed Solutions",
+    "section": "Recommended Roadmap",
+    "text": "Recommended Roadmap\n\n\n\nMedium Term\n\n\nB — Similar-Product Transfer\n\n\nCo-design similarity criteria with domain analysts. Pilot on one manufacturer/category before expanding. Borrow ThresholdV2 profiles from structurally similar products with rich history.\n\n\n\n\nLonger Term\n\n\nA — Agentic Web Search\n\n\nPrototype on a small batch of zero-history products. Evaluate citation quality and build the analyst review workflow. Requires prompt engineering, de-duplication, and a write-back feedback loop before scaling.\n\n\n\n\n\n\n\n\n\n\n\n\nSolution\nReach\nEffort\nAnalyst Input Needed\n\n\n\n\nB — Similar-product transfer\n~31,400 rows\nMedium\nYes — criteria definition\n\n\nA — Agentic search\n~47 rows\nHigh\nYes — citation sign-off"
   },
   {
     "objectID": "index.html",
     "href": "index.html",
     "title": "UOM Recognition Improvements",
     "section": "",
-    "text": "The dataset contains 104,708 line items that were routed through the full UOM recognition pipeline. Steps 1–4 — exact-match lookups and legacy threshold rules — are fast and precise but intentionally conservative; anything they cannot confidently classify is passed to the inference step.\n\n\n\nMetric\nCount\nShare\n\n\n\n\nTotal rows\n104,708\n100 %\n\n\nRecognized (all steps)\n50,954\n48.7 %\n\n\n— of which resolved by Steps 1–4\n156\n0.1 %\n\n\n— of which resolved by Step 5\n50,798\n48.5 %\n\n\nUnrecognized\n53,754\n51.3 %\n\n\n\n\nKey takeaway: Steps 1–4 together account for only 0.1% of all recognitions. Step 5 is responsible for virtually the entire 48.5% recognition rate — without it, nearly all products that reach this dataset would go unmatched."
+    "text": "Job Reference\n    UOM Recognition Job #38552 ↗\n  \n  \n    Total Rows in Job\n    993,483"
   },
   {
-    "objectID": "index.html#at-a-glance",
-    "href": "index.html#at-a-glance",
+    "objectID": "index.html#the-five-step-recognition-pipeline",
+    "href": "index.html#the-five-step-recognition-pipeline",
     "title": "UOM Recognition Improvements",
+    "section": "The Five-Step Recognition Pipeline",
+    "text": "The Five-Step Recognition Pipeline\nEach row passes through steps in order and exits as soon as one step succeeds. The rows in this dataset are those that survived all four earlier steps unmatched, making Step 5 the last line of defense.\n\n\nRecognition Steps — in order of execution\n\n\n\n\n1\n\n\nExact String\n\n\nFile UOM matched directly to known codes\n\n\n\n\n2\n\n\nCatalogue\n\n\nKnown product UOM lookup\n\n\n\n\n3\n\n\nThreshold V1\n\n\nLegacy min/max price band rules\n\n\n\n\n4\n\n\nFile UOM\n\n\nDirect file-label UOM match\n\n\n\n\n5\n\n\nInference ✦\n\n\nDBSCAN clusters + proximity scoring"
+  },
+  {
+    "objectID": "index.html#recognition-outcome-distribution",
+    "href": "index.html#recognition-outcome-distribution",
+    "title": "UOM Recognition Improvements",
+    "section": "Recognition Outcome Distribution",
+    "text": "Recognition Outcome Distribution"
+  },
+  {
+    "objectID": "index.html#confidence-score-distribution",
+    "href": "index.html#confidence-score-distribution",
+    "title": "UOM Recognition Improvements",
+    "section": "Confidence Score Distribution",
+    "text": "Confidence Score Distribution\nEvery row resolved by Step 5 carries a proximity-derived confidence score. A score of 1.0 means the price fell squarely inside a DBSCAN cluster; 0.30 is the minimum accepted threshold.\n\n\n                            \n                                            \n\n\n\n\n\nScore Band\nShare of Recognized\n\n\n\n\n≥ 0.90 — High confidence\n76.6 %\n\n\n0.70 – 0.90 — Moderate\n12.6 %\n\n\n0.30 – 0.70 — Marginal\n10.8 %\n\n\n\n\n77% of all Step 5 recognitions score above 0.90. The median is 0.99 and the mean is 0.92 — the inference engine is not just broad, it’s highly confident on the rows it does resolve.\n\n\nContinue to Deep Dive to understand exactly how the proximity formula works and why certain rows remain unresolved — or jump to Proposed Solutions for actionable next steps."
+  },
+  {
+    "objectID": "analysis.html",
+    "href": "analysis.html",
+    "title": "Deep Dive — How Step 5 Works",
     "section": "",
-    "text": "The dataset contains 104,708 line items that were routed through the full UOM recognition pipeline. Steps 1–4 — exact-match lookups and legacy threshold rules — are fast and precise but intentionally conservative; anything they cannot confidently classify is passed to the inference step.\n\n\n\nMetric\nCount\nShare\n\n\n\n\nTotal rows\n104,708\n100 %\n\n\nRecognized (all steps)\n50,954\n48.7 %\n\n\n— of which resolved by Steps 1–4\n156\n0.1 %\n\n\n— of which resolved by Step 5\n50,798\n48.5 %\n\n\nUnrecognized\n53,754\n51.3 %\n\n\n\n\nKey takeaway: Steps 1–4 together account for only 0.1% of all recognitions. Step 5 is responsible for virtually the entire 48.5% recognition rate — without it, nearly all products that reach this dataset would go unmatched."
+    "text": "Legacy Steps 1–4 use hand-crafted or naively computed min/max price bands. A single extreme transaction widens a V1 band to the point of uselessness — or, when data is sparse, the range is too tight to match new, slightly-different prices.\n\n\n\nDBSCAN (Density-Based Spatial Clustering of Applications with Noise) scans the full purchase history for a product and groups prices into tight, organically-shaped clusters while ignoring statistical outliers as noise. Each resulting ThresholdV2 record captures:\n\n\n\n\n\n\n\nField\nWhat it stores\n\n\n\n\nMinThreshold / MaxThreshold\nObserved price band of the dense cluster — no hand-tuning\n\n\nQuantityOfEAInUOM\nThe UOM quantity this cluster represents (e.g. 12 for BX/12)\n\n\nMeanEA\nPer-each price anchor, used when no WAP entry exists\n\n\n\nBecause outliers are excluded, the clusters are precise. A product with a BX/12 at $120–$180 and an EA at $10–$15 produces two separate clean clusters — not one wide band."
   },
   {
-    "objectID": "index.html#the-role-of-each-step",
-    "href": "index.html#the-role-of-each-step",
-    "title": "UOM Recognition Improvements",
-    "section": "The Role of Each Step",
-    "text": "The Role of Each Step\nThe UOM recognition pipeline runs five steps in order. A row exits as soon as one step successfully assigns a UOM; unmatched rows cascade to the next step.\n\n\n\n\n\n\n\n\nStep\nMechanism\nStrength\n\n\n\n\n1\nExact UOM string match from file\nFastest, highest precision\n\n\n2\nKnown product UOM catalogue lookup\nHigh precision, limited coverage\n\n\n3\nLegacy threshold match (V1 — min/max bounds)\nBroad coverage, sensitive to outliers\n\n\n4\nFile UOM direct match\nHandles file-native UOM labels\n\n\n5\nDBSCAN thresholds + proximity scoring\nWidest coverage, probabilistic confidence\n\n\n\nBecause this dataset represents the rows that survived all four earlier steps unmatched, Step 5 carries the full weight of the remaining recognition task."
+    "objectID": "analysis.html#part-1-dbscan-built-thresholdsv2",
+    "href": "analysis.html#part-1-dbscan-built-thresholdsv2",
+    "title": "Deep Dive — How Step 5 Works",
+    "section": "",
+    "text": "Legacy Steps 1–4 use hand-crafted or naively computed min/max price bands. A single extreme transaction widens a V1 band to the point of uselessness — or, when data is sparse, the range is too tight to match new, slightly-different prices.\n\n\n\nDBSCAN (Density-Based Spatial Clustering of Applications with Noise) scans the full purchase history for a product and groups prices into tight, organically-shaped clusters while ignoring statistical outliers as noise. Each resulting ThresholdV2 record captures:\n\n\n\n\n\n\n\nField\nWhat it stores\n\n\n\n\nMinThreshold / MaxThreshold\nObserved price band of the dense cluster — no hand-tuning\n\n\nQuantityOfEAInUOM\nThe UOM quantity this cluster represents (e.g. 12 for BX/12)\n\n\nMeanEA\nPer-each price anchor, used when no WAP entry exists\n\n\n\nBecause outliers are excluded, the clusters are precise. A product with a BX/12 at $120–$180 and an EA at $10–$15 produces two separate clean clusters — not one wide band."
   },
   {
-    "objectID": "index.html#recognition-rate-visualised",
-    "href": "index.html#recognition-rate-visualised",
-    "title": "UOM Recognition Improvements",
-    "section": "Recognition Rate Visualised",
-    "text": "Recognition Rate Visualised"
+    "objectID": "analysis.html#part-2-the-proximity-inference-formula",
+    "href": "analysis.html#part-2-the-proximity-inference-formula",
+    "title": "Deep Dive — How Step 5 Works",
+    "section": "Part 2 — The Proximity Inference Formula",
+    "text": "Part 2 — The Proximity Inference Formula\nOnce DBSCAN clusters exist, Step 5 must decide which cluster best explains the file’s PriceUOM. The core insight: price operates on a log scale. A $5 difference matters far more at a $10 product than a $10,000 product.\n\nStep A — Log-distance from cluster edge\n\nlogPrice = log₁₀(max(PriceUOM, 0.0001)) logLo = log₁₀(max(MinThreshold, 0.0001)) logHi = log₁₀(max(MaxThreshold, 0.0001))  logDist = 0 ← price is inside the cluster band = logPrice − logHi ← price is above the band = logLo − logPrice ← price is below the band\n\nIf PriceUOM falls inside the cluster, logDist = 0 — a perfect match. Outside, the distance grows as the log ratio of the price to the nearest edge.\n\n\nStep B — Gaussian proximity score\n\nproximityScore = exp(−0.5 × (logDist / LOG_EPS)²)  where LOG_EPS = 0.25 (≈ 1.78× tolerance from the cluster edge)\n\nThis is a Gaussian kernel on log-price space. At logDist = 0 the score is exactly 1.0. At a 1.78× price deviation from the edge the score falls to ~0.37. At 2× it collapses to ~0.02 — effectively zero.\n\n\nWhy This Mirrors Analyst Reasoning\n\n\nAnalysts manually verify a UOM by asking: “is this price in the right ballpark for this product and pack size?” A BX/10 should cost ~10× a single unit. If the file shows 3× or 20× off, the analyst rejects it. The proximity score formalises this intuition — prices inside the cluster score 1.0, prices slightly outside drop gracefully, and wildly mismatched prices collapse to near zero. Working in log space means the tolerance is proportional (a 50% deviation at $10 and a 50% deviation at $10,000 are treated identically), which is exactly how analysts think about pricing.\n\n\n\n\nStep C — Four candidate pools\nStep 5 scores up to four candidate sources and picks the highest:\n\n\n\n\n\n\n\n\n\n#\nSource\nSignal\nMin score required\n\n\n\n\n1\nDBSCAN cluster\nDensity-derived from purchase history\nNone (primary)\n\n\n2\nKnown Product UOM (WAP)\nWeighted-average price from history\nNone\n\n\n3\nEA/1 WAP\nPer-each price derived from WAP ÷ qty\nNone\n\n\n4\nFile UOM × WAP\nFile-stated qty × per-each WAP\n0.85 (stricter — file labels unreliable)\n\n\n\nThe row is assigned if the winning score is ≥ 0.30; otherwise it exits unrecognized."
   },
   {
-    "objectID": "index.html#confidence-score-distribution-recognized-rows",
-    "href": "index.html#confidence-score-distribution-recognized-rows",
-    "title": "UOM Recognition Improvements",
-    "section": "Confidence Score Distribution (Recognized Rows)",
-    "text": "Confidence Score Distribution (Recognized Rows)\nEvery row recognized by Step 5 carries a confidence score derived from its winning proximity score. A score ≥ 0.90 signals the inferred UOM is almost certainly correct; the minimum accepted is 0.30.\n\n\n                            \n                                            \n\n\n\n\n\nScore band\nCount\nShare of Step 5 recognized\n\n\n\n\n≥ 0.90 (high confidence)\n38,930\n76.6 %\n\n\n0.70 – 0.90 (moderate)\n6,402\n12.6 %\n\n\n0.30 – 0.70 (marginal)\n5,466\n10.8 %\n\n\n\nThe median confidence score is 0.99 and the mean is 0.92, confirming that the vast majority of Step 5 assignments carry strong probabilistic support.\n\nNavigate to Deep Dive for a detailed breakdown of the inference mechanism, winner-source analysis, and why unrecognized rows remain unresolved. See Proposed Solutions for actionable next steps on zero-history products."
+    "objectID": "analysis.html#winner-source-breakdown",
+    "href": "analysis.html#winner-source-breakdown",
+    "title": "Deep Dive — How Step 5 Works",
+    "section": "Winner-Source Breakdown",
+    "text": "Winner-Source Breakdown\n\n\n                            \n                                            \n\n\nDBSCAN clusters win 94% of the time — validating that density-based thresholds are the most reliable signal. The remaining 6% are split across three supplementary pools, each catching a class of products DBSCAN alone doesn’t yet cover."
+  },
+  {
+    "objectID": "analysis.html#top-10-assigned-uoms",
+    "href": "analysis.html#top-10-assigned-uoms",
+    "title": "Deep Dive — How Step 5 Works",
+    "section": "Top 10 Assigned UOMs",
+    "text": "Top 10 Assigned UOMs\n\n\n                            \n                                            \n\n\nEA/1 (single-unit) is the most commonly assigned UOM — confirming that many suppliers quote at per-each pricing even when the historical record has only larger-pack purchases. BX and CA in quantities of 10, 12, 50, and 100 round out the top assignments, reflecting the standard medical-supply pack sizes in this dataset."
+  },
+  {
+    "objectID": "analysis.html#why-unrecognized-rows-stay-unrecognized",
+    "href": "analysis.html#why-unrecognized-rows-stay-unrecognized",
+    "title": "Deep Dive — How Step 5 Works",
+    "section": "Why Unrecognized Rows Stay Unrecognized",
+    "text": "Why Unrecognized Rows Stay Unrecognized\nThree root causes account for nearly all 53,754 unresolved rows:\n\n\n\n🚫\n\n\n3,168\n\n\nNo Usable PriceUOM\n\n\nNull or zero — Step 5 cannot compute log-distance without a price\n\n\n\n\n📉\n\n\n31,447\n\n\nNo / Sparse History\n\n\nZero or 1–4 units — not enough data to form reliable DBSCAN clusters\n\n\n\n\n🎯\n\n\n21,900\n\n\nPrice Out of Range\n\n\nHistory exists but file price falls below 0.30 proximity score for every cluster\n\n\n\n\nPurchase History Depth Comparison\n\n\n                            \n                                            \n\n\nThe gap between recognized and unrecognized is sharpest in the “Some (5–49)” and “Strong (≥ 50)” bands — these rows have adequate history for DBSCAN but their file prices deviate beyond the 0.30 proximity threshold. This pattern points to price drift, new pack sizes, or supplier unit-vs-case mismatches as the primary culprit for the remaining unrecognized population.\n\nSee Proposed Solutions for concrete strategies to address each root cause."
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site"
   }
 ]

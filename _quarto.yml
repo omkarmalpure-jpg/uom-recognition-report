@@ -18,8 +18,7 @@ format:
     css: styles.css
     toc: true
     toc-depth: 3
+    title-block-banner: "#0f172a"
+    title-block-banner-color: white
 
 jupyter: venv-analysis
-
-
-
