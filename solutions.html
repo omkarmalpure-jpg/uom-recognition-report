@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Proposed Solutions — Closing the Unrecognized Gap – UOM Recognition Improvements</title>
+<title>Proposed Solutions – UOM Recognition Improvements</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -70,6 +70,23 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Search"
   }
 }</script>
+<style>
+
+      .quarto-title-block .quarto-title-banner h1,
+      .quarto-title-block .quarto-title-banner h2,
+      .quarto-title-block .quarto-title-banner h3,
+      .quarto-title-block .quarto-title-banner h4,
+      .quarto-title-block .quarto-title-banner h5,
+      .quarto-title-block .quarto-title-banner h6
+      {
+        color: white;
+      }
+
+      .quarto-title-block .quarto-title-banner {
+        color: white;
+background: #0f172a;
+      }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
 
 <script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
@@ -87,7 +104,7 @@ if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.M
 <body class="nav-fixed quarto-light">
 
 <div id="quarto-search-results"></div>
-  <header id="quarto-header" class="headroom fixed-top">
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
@@ -121,7 +138,24 @@ if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.M
     </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Proposed Solutions</h1>
+            <p class="subtitle lead">Closing the 51.3% unrecognized gap — a prioritised roadmap</p>
+                      </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
@@ -129,242 +163,33 @@ if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.M
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#overview-of-the-unrecognized-population" id="toc-overview-of-the-unrecognized-population" class="nav-link active" data-scroll-target="#overview-of-the-unrecognized-population">Overview of the Unrecognized Population</a></li>
-  <li><a href="#solution-a-agentic-web-search-for-zero-history-products" id="toc-solution-a-agentic-web-search-for-zero-history-products" class="nav-link" data-scroll-target="#solution-a-agentic-web-search-for-zero-history-products">Solution A — Agentic Web Search for Zero-History Products</a>
+  <li><a href="#the-unrecognized-population" id="toc-the-unrecognized-population" class="nav-link active" data-scroll-target="#the-unrecognized-population">The Unrecognized Population</a></li>
+  <li><a href="#solution-a-agentic-web-search" id="toc-solution-a-agentic-web-search" class="nav-link" data-scroll-target="#solution-a-agentic-web-search">Solution A — Agentic Web Search</a></li>
+  <li><a href="#solution-b-similar-product-transfer" id="toc-solution-b-similar-product-transfer" class="nav-link" data-scroll-target="#solution-b-similar-product-transfer">Solution B — Similar-Product Transfer</a>
   <ul class="collapse">
-  <li><a href="#the-problem" id="toc-the-problem" class="nav-link" data-scroll-target="#the-problem">The problem</a></li>
-  <li><a href="#proposed-approach" id="toc-proposed-approach" class="nav-link" data-scroll-target="#proposed-approach">Proposed approach</a></li>
-  <li><a href="#what-needs-to-be-built-and-tested" id="toc-what-needs-to-be-built-and-tested" class="nav-link" data-scroll-target="#what-needs-to-be-built-and-tested">What needs to be built and tested</a></li>
-  <li><a href="#trade-offs" id="toc-trade-offs" class="nav-link" data-scroll-target="#trade-offs">Trade-offs</a></li>
+  <li><a href="#key-questions-for-analysts" id="toc-key-questions-for-analysts" class="nav-link" data-scroll-target="#key-questions-for-analysts">Key questions for analysts</a></li>
   </ul></li>
-  <li><a href="#solution-b-similar-product-transfer-purchase-history-bridge" id="toc-solution-b-similar-product-transfer-purchase-history-bridge" class="nav-link" data-scroll-target="#solution-b-similar-product-transfer-purchase-history-bridge">Solution B — Similar-Product Transfer (Purchase History Bridge)</a>
-  <ul class="collapse">
-  <li><a href="#the-problem-1" id="toc-the-problem-1" class="nav-link" data-scroll-target="#the-problem-1">The problem</a></li>
-  <li><a href="#proposed-approach-1" id="toc-proposed-approach-1" class="nav-link" data-scroll-target="#proposed-approach-1">Proposed approach</a></li>
-  <li><a href="#what-needs-to-be-discussed-with-analysts" id="toc-what-needs-to-be-discussed-with-analysts" class="nav-link" data-scroll-target="#what-needs-to-be-discussed-with-analysts">What needs to be discussed with analysts</a></li>
-  <li><a href="#trade-offs-1" id="toc-trade-offs-1" class="nav-link" data-scroll-target="#trade-offs-1">Trade-offs</a></li>
-  </ul></li>
-  <li><a href="#solution-c-threshold-relaxation-for-out-of-range-prices" id="toc-solution-c-threshold-relaxation-for-out-of-range-prices" class="nav-link" data-scroll-target="#solution-c-threshold-relaxation-for-out-of-range-prices">Solution C — Threshold Relaxation for Out-of-Range Prices</a>
-  <ul class="collapse">
-  <li><a href="#the-problem-2" id="toc-the-problem-2" class="nav-link" data-scroll-target="#the-problem-2">The problem</a></li>
-  <li><a href="#proposed-approaches" id="toc-proposed-approaches" class="nav-link" data-scroll-target="#proposed-approaches">Proposed approaches</a></li>
-  </ul></li>
-  <li><a href="#prioritisation-matrix" id="toc-prioritisation-matrix" class="nav-link" data-scroll-target="#prioritisation-matrix">Prioritisation Matrix</a></li>
-  <li><a href="#recommended-starting-point" id="toc-recommended-starting-point" class="nav-link" data-scroll-target="#recommended-starting-point">Recommended Starting Point</a></li>
+  <li><a href="#solution-c-threshold-relaxation" id="toc-solution-c-threshold-relaxation" class="nav-link" data-scroll-target="#solution-c-threshold-relaxation">Solution C — Threshold Relaxation</a></li>
+  <li><a href="#coverage-comparison" id="toc-coverage-comparison" class="nav-link" data-scroll-target="#coverage-comparison">Coverage Comparison</a></li>
+  <li><a href="#recommended-roadmap" id="toc-recommended-roadmap" class="nav-link" data-scroll-target="#recommended-roadmap">Recommended Roadmap</a></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
-
-<header id="title-block-header" class="quarto-title-block default">
-<div class="quarto-title">
-<h1 class="title">Proposed Solutions — Closing the Unrecognized Gap</h1>
-</div>
+<main class="content quarto-banner-title-block" id="quarto-document-content">
 
 
 
-<div class="quarto-title-meta">
-
-    
-  
-    
-  </div>
-  
 
 
-</header>
-
-
-<section id="overview-of-the-unrecognized-population" class="level2">
-<h2 class="anchored" data-anchor-id="overview-of-the-unrecognized-population">Overview of the Unrecognized Population</h2>
-<p>The 53,754 rows that Step 5 could not resolve fall into three buckets, each requiring a different strategy:</p>
-<table class="table-striped table-hover caption-top table">
-<colgroup>
-<col style="width: 42%">
-<col style="width: 21%">
-<col style="width: 35%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Root cause</th>
-<th style="text-align: right;">Rows</th>
-<th>Strategy</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>No / zero purchase history</td>
-<td style="text-align: right;">47</td>
-<td>External enrichment (agentic search <strong>or</strong> catalogue match)</td>
-</tr>
-<tr class="even">
-<td>Very low purchase history (1–4 units)</td>
-<td style="text-align: right;">31,400</td>
-<td>Similar-product transfer + analyst review</td>
-</tr>
-<tr class="odd">
-<td>Some history but price out of range</td>
-<td style="text-align: right;">21,900</td>
-<td>Threshold relaxation / cluster expansion</td>
-</tr>
-</tbody>
-</table>
-<hr>
-</section>
-<section id="solution-a-agentic-web-search-for-zero-history-products" class="level2">
-<h2 class="anchored" data-anchor-id="solution-a-agentic-web-search-for-zero-history-products">Solution A — Agentic Web Search for Zero-History Products</h2>
-<section id="the-problem" class="level3">
-<h3 class="anchored" data-anchor-id="the-problem">The problem</h3>
-<p>When a product has <strong>no purchase history at all</strong>, Step 5 has no anchors to compute proximity against — no DBSCAN cluster, no WAP, nothing. The only signal available is the product description itself.</p>
-</section>
-<section id="proposed-approach" class="level3">
-<h3 class="anchored" data-anchor-id="proposed-approach">Proposed approach</h3>
-<p>An agentic pipeline can augment these rows autonomously:</p>
-<ol type="1">
-<li><p><strong>Query construction</strong> — from <code>RecognizedProductDesc</code>, <code>RecognizedManufacturerName</code>, and <code>RecognizedProductCatalogNumber</code> build a structured search query (e.g., <code>"Abbott 1192ANS Anchor SwiftLock unit of measure"</code> or a medical-device pricing database lookup).</p></li>
-<li><p><strong>Search &amp; parse</strong> — the agent calls a web search tool or a medical product catalogue API and extracts candidate UOM labels and typical pack sizes.</p></li>
-<li><p><strong>Citation attachment</strong> — every suggestion is stored with its source URL and snippet so an analyst can verify it before accepting.</p></li>
-<li><p><strong>Confidence flagging</strong> — the agent rates its own confidence (e.g., “found exact catalog number” vs.&nbsp;“matched by description keyword”). Low-confidence suggestions are flagged for mandatory human review before write-back.</p></li>
-</ol>
-</section>
-<section id="what-needs-to-be-built-and-tested" class="level3">
-<h3 class="anchored" data-anchor-id="what-needs-to-be-built-and-tested">What needs to be built and tested</h3>
-<ul>
-<li>Prompt engineering to reliably extract structured UOM data from unstructured web pages.</li>
-<li>A de-duplication pass to collapse near-identical suggestions.</li>
-<li>A review UI that surfaces the citation alongside the suggested UOM for analyst sign-off.</li>
-<li>A feedback loop: accepted suggestions are written back into the purchase history so future runs can resolve the same products without another search.</li>
-</ul>
-</section>
-<section id="trade-offs" class="level3">
-<h3 class="anchored" data-anchor-id="trade-offs">Trade-offs</h3>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 60%">
-<col style="width: 40%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Benefit</th>
-<th>Risk</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Extends coverage to truly novel products</td>
-<td>Hallucination / incorrect web data — must require analyst approval</td>
-</tr>
-<tr class="even">
-<td>Provides auditable citations</td>
-<td>Adds latency and API cost per zero-history product</td>
-</tr>
-<tr class="odd">
-<td>Self-improving over time as accepted results grow history</td>
-<td>Needs prompt fine-tuning per product category</td>
-</tr>
-</tbody>
-</table>
-<hr>
-</section>
-</section>
-<section id="solution-b-similar-product-transfer-purchase-history-bridge" class="level2">
-<h2 class="anchored" data-anchor-id="solution-b-similar-product-transfer-purchase-history-bridge">Solution B — Similar-Product Transfer (Purchase History Bridge)</h2>
-<section id="the-problem-1" class="level3">
-<h3 class="anchored" data-anchor-id="the-problem-1">The problem</h3>
-<p>The 31,400 rows with very low purchase history have <em>some</em> data but not enough to build a reliable DBSCAN cluster or meaningful WAP.</p>
-</section>
-<section id="proposed-approach-1" class="level3">
-<h3 class="anchored" data-anchor-id="proposed-approach-1">Proposed approach</h3>
-<p>Rather than going to the web, look inside the existing purchase history for <strong>similar products</strong>:</p>
-<ol type="1">
-<li><p><strong>Similarity candidates</strong> — for a product with sparse history, find other products in the catalogue that share:</p>
-<ul>
-<li>Same <code>RecognizedManufacturerID</code></li>
-<li>Same <code>RecognizedProductTypeID</code></li>
-<li>Similar description tokens (keyword overlap or embedding distance)</li>
-</ul></li>
-<li><p><strong>UOM profile transfer</strong> — the similar product’s ThresholdV2 clusters and WAP are borrowed as a <em>prior</em>. The proximity scoring in Step 5 runs exactly as normal, just with the borrowed thresholds substituting for the absent ones.</p></li>
-<li><p><strong>Downgraded confidence</strong> — because the thresholds are borrowed, the resulting confidence score is multiplied by a transfer discount factor (e.g., 0.80) to signal to downstream consumers that this is an inferred — not directly observed — assignment.</p></li>
-<li><p><strong>Analyst review trigger</strong> — rows resolved via transfer are surfaced in a separate review queue so analysts can confirm the analogy is valid for that product category.</p></li>
-</ol>
-</section>
-<section id="what-needs-to-be-discussed-with-analysts" class="level3">
-<h3 class="anchored" data-anchor-id="what-needs-to-be-discussed-with-analysts">What needs to be discussed with analysts</h3>
-<ul>
-<li><strong>Acceptable similarity criteria</strong> — does same manufacturer + same product type constitute a strong enough analogy? Are there categories where this would be systematically misleading (e.g., two products with the same type ID but very different pricing tiers)?</li>
-<li><strong>Discount factor calibration</strong> — how much should transferred confidence be penalised?</li>
-<li><strong>Segment sensitivity</strong> — certain clinical categories (e.g., implants vs.&nbsp;consumables) may require different similarity rules.</li>
-</ul>
-</section>
-<section id="trade-offs-1" class="level3">
-<h3 class="anchored" data-anchor-id="trade-offs-1">Trade-offs</h3>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 60%">
-<col style="width: 40%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Benefit</th>
-<th>Risk</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Uses existing, trusted purchase data — no external calls</td>
-<td>Wrong analogy can propagate a systematic error</td>
-</tr>
-<tr class="even">
-<td>Fast — no added latency</td>
-<td>Similarity is hard to define without analyst input</td>
-</tr>
-<tr class="odd">
-<td>Gracefully degrades to unrecognized if no similar product found</td>
-<td>Requires a new similarity index to be maintained</td>
-</tr>
-</tbody>
-</table>
-<hr>
-</section>
-</section>
-<section id="solution-c-threshold-relaxation-for-out-of-range-prices" class="level2">
-<h2 class="anchored" data-anchor-id="solution-c-threshold-relaxation-for-out-of-range-prices">Solution C — Threshold Relaxation for Out-of-Range Prices</h2>
-<section id="the-problem-2" class="level3">
-<h3 class="anchored" data-anchor-id="the-problem-2">The problem</h3>
-<p>The 21,900 rows with adequate history fail because their file <code>PriceUOM</code> falls outside <em>every</em> DBSCAN cluster at a distance where the proximity score is below 0.30.</p>
-<p>Common causes:</p>
-<ul>
-<li><strong>Supplier price change</strong> — the vendor raised or lowered prices since the last purchase, shifting the quote outside the historical band.</li>
-<li><strong>New pack size</strong> — the supplier is now selling in a quantity not previously ordered (e.g., BX/24 when history only has BX/12 and BX/100).</li>
-<li><strong>Currency / unit mismatch</strong> — a price-per-case was accidentally quoted as price-per-each.</li>
-</ul>
-</section>
-<section id="proposed-approaches" class="level3">
-<h3 class="anchored" data-anchor-id="proposed-approaches">Proposed approaches</h3>
-<section id="c1-widened-acceptance-window-lower-log_eps-threshold" class="level4">
-<h4 class="anchored" data-anchor-id="c1-widened-acceptance-window-lower-log_eps-threshold">C1 — Widened acceptance window (lower LOG_EPS threshold)</h4>
-<p><code>LOG_EPS = 0.25</code> currently corresponds to a roughly 1.8× tolerance from the cluster edge. Increasing it to <code>0.40</code> extends tolerance to ~2.5×. This is a global change and must be evaluated on a hold-out set to measure false-positive impact.</p>
-</section>
-<section id="c2-price-trend-adjustment" class="level4">
-<h4 class="anchored" data-anchor-id="c2-price-trend-adjustment">C2 — Price-trend adjustment</h4>
-<p>For products with a time-stamped purchase history, the system can detect upward or downward price trends and project the cluster range forward. A product whose EA price has trended from $10 → $13 → $16 over 12 months is likely priced around $19 today; the cluster built on 12-month-old data will be offset.</p>
-</section>
-<section id="c3-analyst-escalation-queue" class="level4">
-<h4 class="anchored" data-anchor-id="c3-analyst-escalation-queue">C3 — Analyst escalation queue</h4>
-<p>Rows where the best candidate score is 0.20–0.30 (just below acceptance) are surfaced in a dedicated review queue. The analyst sees the best DBSCAN candidate, its score, and the distance from the cluster edge — making a quick accept/reject decision fast. Accepted overrides are recorded and used to retrain the threshold or expand the cluster.</p>
-<hr>
-</section>
-</section>
-</section>
-<section id="prioritisation-matrix" class="level2">
-<h2 class="anchored" data-anchor-id="prioritisation-matrix">Prioritisation Matrix</h2>
-<div id="76df7997" class="cell" data-execution_count="2">
+<section id="the-unrecognized-population" class="level2">
+<h2 class="anchored" data-anchor-id="the-unrecognized-population">The Unrecognized Population</h2>
+<div id="40458872" class="cell" data-execution_count="2">
 <div class="cell-output cell-output-display">
 <div>            <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_SVG"></script><script>if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: "STIX-Web"}});}</script>                <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
-        <script charset="utf-8" src="https://cdn.plot.ly/plotly-3.5.0.min.js" integrity="sha256-fHbNLP+GlIXN+efbQec78UkemUz3NJp7UmfGxC1tNxs=" crossorigin="anonymous"></script>                <div id="5e52c089-9148-4d6c-beb2-ec4f9f72ed31" class="plotly-graph-div" style="height:420px; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("5e52c089-9148-4d6c-beb2-ec4f9f72ed31")) {                    Plotly.newPlot(                        "5e52c089-9148-4d6c-beb2-ec4f9f72ed31",                        [{"marker":{"color":"#27ae60"},"name":"Potential rows recovered","text":["47","31,400","8,760","13,140"],"textposition":"outside","x":["A \u2014 Agentic Web Search","B \u2014 Similar-Product Transfer","C1 \u2014 Widen LOG_EPS","C3 \u2014 Analyst Escalation Queue"],"y":[47,31400,8760,13140],"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"},"margin":{"b":0,"l":0,"r":0,"t":30}}},"title":{"text":"Estimated Row Coverage vs Implementation Effort"},"margin":{"t":60,"b":60},"yaxis":{"title":{"text":"Rows that could be resolved"}},"height":420},                        {"responsive": true}                    ).then(function(){
+        <script charset="utf-8" src="https://cdn.plot.ly/plotly-3.5.0.min.js" integrity="sha256-fHbNLP+GlIXN+efbQec78UkemUz3NJp7UmfGxC1tNxs=" crossorigin="anonymous"></script>                <div id="b0ea9a3e-b422-4320-b293-e67eabe7d793" class="plotly-graph-div" style="height:380px; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("b0ea9a3e-b422-4320-b293-e67eabe7d793")) {                    Plotly.newPlot(                        "b0ea9a3e-b422-4320-b293-e67eabe7d793",                        [{"hole":0.5,"hovertemplate":"\u003cb\u003e%{label}\u003c\u002fb\u003e\u003cbr\u003e%{value:,} rows\u003cbr\u003e%{percent}\u003cextra\u003e\u003c\u002fextra\u003e","insidetextorientation":"radial","labels":["No\u002fZero Purchase History","Very Low History (1\u20134 units)","Price Out of DBSCAN Range"],"marker":{"colors":["#ef4444","#f97316","#f59e0b"],"line":{"color":"white","width":3}},"textfont":{"family":"Inter, sans-serif","size":11},"textinfo":"label+percent","values":[47,31400,21900],"type":"pie"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"},"margin":{"b":0,"l":0,"r":0,"t":30}}},"annotations":[{"align":"center","font":{"color":"#0f172a","family":"Space Grotesk, sans-serif","size":13},"showarrow":false,"text":"\u003cb style=\"font-size:20px\"\u003e53,754\u003c\u002fb\u003e\u003cbr\u003e\u003cspan style=\"color:#64748b;font-size:11px\"\u003eUnrecognized\u003c\u002fspan\u003e","x":0.5,"y":0.5}],"font":{"family":"Inter, sans-serif","color":"#334155"},"legend":{"font":{"size":11},"orientation":"h","yanchor":"bottom","y":-0.18,"xanchor":"center","x":0.5,"bgcolor":"rgba(0,0,0,0)"},"margin":{"t":20,"b":80,"l":20,"r":20},"paper_bgcolor":"white","plot_bgcolor":"white","height":380,"showlegend":true},                        {"responsive": true}                    ).then(function(){
                             
-var gd = document.getElementById('5e52c089-9148-4d6c-beb2-ec4f9f72ed31');
+var gd = document.getElementById('b0ea9a3e-b422-4320-b293-e67eabe7d793');
 var x = new MutationObserver(function (mutations, observer) {{
         var display = window.getComputedStyle(gd).display;
         if (!display || display === 'none') {{
@@ -389,58 +214,258 @@ if (outputEl) {{
                         })                };            </script>        </div>
 </div>
 </div>
-<table class="table-striped table-hover caption-top table">
+<table class="caption-top table">
 <colgroup>
-<col style="width: 13%">
-<col style="width: 22%">
+<col style="width: 26%">
 <col style="width: 32%">
-<col style="width: 32%">
+<col style="width: 41%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Solution</th>
-<th style="text-align: right;">Potential reach</th>
-<th style="text-align: right;">Implementation effort</th>
-<th>Requires analyst input</th>
+<th style="text-align: left;">Root Cause</th>
+<th style="text-align: center;">Rows Affected</th>
+<th style="text-align: left;">Proposed Strategy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>A — Agentic search</td>
-<td style="text-align: right;">47 rows (zero-history)</td>
-<td style="text-align: right;">High — prompt engineering + review UI</td>
-<td>Yes — citation sign-off</td>
+<td style="text-align: left;">No / zero purchase history</td>
+<td style="text-align: center;">47</td>
+<td style="text-align: left;">Solution A — Agentic web search</td>
 </tr>
 <tr class="even">
-<td>B — Similar-product transfer</td>
-<td style="text-align: right;">31,400 rows (low history)</td>
-<td style="text-align: right;">Medium — similarity index + discount logic</td>
-<td>Yes — similarity criteria definition</td>
+<td style="text-align: left;">Very low history (1–4 units)</td>
+<td style="text-align: center;">31,400</td>
+<td style="text-align: left;">Solution B — Similar-product transfer</td>
 </tr>
 <tr class="odd">
-<td>C1 — Widen LOG_EPS</td>
-<td style="text-align: right;">Subset of 21,900 rows</td>
-<td style="text-align: right;">Low — one config change + validation</td>
-<td>No — but needs hold-out evaluation</td>
-</tr>
-<tr class="even">
-<td>C3 — Escalation queue</td>
-<td style="text-align: right;">Near-miss rows (score 0.20–0.30)</td>
-<td style="text-align: right;">Low — UI change only</td>
-<td>Yes — per-row review</td>
+<td style="text-align: left;">Price outside DBSCAN range</td>
+<td style="text-align: center;">21,900</td>
+<td style="text-align: left;">Solution C — Threshold relaxation</td>
 </tr>
 </tbody>
 </table>
 <hr>
 </section>
-<section id="recommended-starting-point" class="level2">
-<h2 class="anchored" data-anchor-id="recommended-starting-point">Recommended Starting Point</h2>
-<ol type="1">
-<li><p><strong>Immediate</strong> — implement <strong>C3 (escalation queue)</strong> to capture near-misses with minimal engineering. This recovers the easiest unrecognized rows and builds analyst feedback data that can be used to calibrate all other solutions.</p></li>
-<li><p><strong>Short term</strong> — evaluate <strong>C1 (LOG_EPS relaxation)</strong> on a hold-out set. If the false-positive rate is acceptable, deploy it to recover a large portion of the out-of-range rows automatically.</p></li>
-<li><p><strong>Medium term</strong> — design and pilot <strong>Solution B (similar-product transfer)</strong> with analysts. The similarity criteria need to be co-designed with domain experts before any automated write-back.</p></li>
-<li><p><strong>Longer term</strong> — prototype <strong>Solution A (agentic search)</strong> on a small batch of zero-history products, evaluate citation quality, and build the review workflow before scaling.</p></li>
-</ol>
+<section id="solution-a-agentic-web-search" class="level2">
+<h2 class="anchored" data-anchor-id="solution-a-agentic-web-search">Solution A — Agentic Web Search</h2>
+<div class="solution-cards">
+<div class="sol-card sol-a">
+<div class="sol-header">
+<div class="sol-icon">
+🤖
+</div>
+<div class="sol-top">
+<pre><code>&lt;div class="sol-label"&gt;Solution A · Zero-History Products&lt;/div&gt;
+&lt;div class="sol-title"&gt;Agentic Web Search with Citation&lt;/div&gt;
+&lt;div class="sol-reach"&gt;Targets &lt;strong&gt;47&lt;/strong&gt; rows with no purchase history&lt;/div&gt;</code></pre>
+</div>
+</div>
+<div class="sol-body">
+<p>
+When a product has no purchase history at all, Step 5 has no anchors. The only signal available is the product description, manufacturer, and catalog number. An agentic pipeline can autonomously enrich these rows:
+</p>
+<ul class="sol-steps">
+<li data-n="1">
+<strong>Query construction</strong> — build a structured search from <code>RecognizedProductDesc</code>, <code>RecognizedManufacturerName</code>, and <code>RecognizedProductCatalogNumber</code>.
+</li>
+<li data-n="2">
+<strong>Search &amp; extract</strong> — agent calls a web search tool or medical-device catalogue API and extracts candidate UOM labels and typical pack sizes.
+</li>
+<li data-n="3">
+<strong>Citation attachment</strong> — every suggestion is stored with its source URL so analysts can verify before accepting.
+</li>
+<li data-n="4">
+<strong>Confidence flagging</strong> — agent rates its own confidence (“exact catalog number match” vs.&nbsp;“description keyword match”). Low-confidence results require mandatory analyst sign-off before write-back.
+</li>
+<li data-n="5">
+<strong>Feedback loop</strong> — accepted suggestions are written to purchase history so future runs resolve the same products without a search.
+</li>
+</ul>
+<div class="sol-tags">
+<p><span class="sol-tag effort-high">High effort</span> <span class="sol-tag">Requires analyst review</span> <span class="sol-tag">Self-improving over time</span> <span class="sol-tag">Needs prompt fine-tuning</span></p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</section>
+<section id="solution-b-similar-product-transfer" class="level2">
+<h2 class="anchored" data-anchor-id="solution-b-similar-product-transfer">Solution B — Similar-Product Transfer</h2>
+<div class="solution-cards">
+<div class="sol-card sol-b">
+<div class="sol-header">
+<div class="sol-icon">
+🔗
+</div>
+<div class="sol-top">
+<pre><code>&lt;div class="sol-label"&gt;Solution B · Sparse History Products&lt;/div&gt;
+&lt;div class="sol-title"&gt;Purchase History Bridge via Product Similarity&lt;/div&gt;
+&lt;div class="sol-reach"&gt;Targets &lt;strong&gt;31\,400&lt;/strong&gt; rows with 1–4 unit history&lt;/div&gt;</code></pre>
+</div>
+</div>
+<div class="sol-body">
+<p>
+Rather than going to the web, look inside existing purchase history for structurally similar products and borrow their ThresholdV2 clusters as a prior:
+</p>
+<ul class="sol-steps">
+<li data-n="1">
+<strong>Similarity candidates</strong> — find products in the catalogue sharing the same <code>RecognizedManufacturerID</code>, same <code>RecognizedProductTypeID</code>, and similar description tokens (keyword overlap or embedding distance).
+</li>
+<li data-n="2">
+<strong>UOM profile transfer</strong> — the similar product’s ThresholdV2 clusters and WAP are borrowed. The proximity scoring in Step 5 runs exactly as normal, using the borrowed thresholds.
+</li>
+<li data-n="3">
+<strong>Downgraded confidence</strong> — the resulting score is multiplied by a transfer discount factor (e.g., 0.80) to signal the assignment is inferred, not directly observed.
+</li>
+<li data-n="4">
+<strong>Analyst review queue</strong> — transferred rows surface in a separate queue for analysts to confirm the analogy is valid before the result propagates.
+</li>
+</ul>
+<div class="sol-tags">
+<p><span class="sol-tag effort-med">Medium effort</span> <span class="sol-tag">Needs similarity criteria co-design with analysts</span> <span class="sol-tag">No external API calls</span></p>
+</div>
+</div>
+</div>
+</div>
+<section id="key-questions-for-analysts" class="level3">
+<h3 class="anchored" data-anchor-id="key-questions-for-analysts">Key questions for analysts</h3>
+<p>Before implementing, these must be answered collaboratively:</p>
+<ul>
+<li>Does same <strong>manufacturer + product type</strong> constitute a strong enough analogy, or are there product categories where this would be systematically misleading?</li>
+<li>What <strong>discount factor</strong> appropriately penalises borrowed confidence?</li>
+<li>Are there clinical categories (implants vs.&nbsp;consumables) that require different similarity criteria?</li>
+</ul>
+<hr>
+</section>
+</section>
+<section id="solution-c-threshold-relaxation" class="level2">
+<h2 class="anchored" data-anchor-id="solution-c-threshold-relaxation">Solution C — Threshold Relaxation</h2>
+<div class="solution-cards">
+<div class="sol-card sol-c">
+<div class="sol-header">
+<div class="sol-icon">
+⚙️
+</div>
+<div class="sol-top">
+<pre><code>&lt;div class="sol-label"&gt;Solution C · Price Out-of-Range Products&lt;/div&gt;
+&lt;div class="sol-title"&gt;Widen the Proximity Window + Analyst Escalation&lt;/div&gt;
+&lt;div class="sol-reach"&gt;Targets &lt;strong&gt;21\,900&lt;/strong&gt; rows with history but score &amp;lt; 0.30&lt;/div&gt;</code></pre>
+</div>
+</div>
+<div class="sol-body">
+<p>
+These rows have adequate purchase history but the file’s <code>PriceUOM</code> lands too far from every DBSCAN cluster. Common causes: supplier price changes, new pack sizes, or unit vs.&nbsp;case mismatches. Two complementary approaches:
+</p>
+<ul class="sol-steps">
+<li data-n="C1">
+<strong>Widen LOG_EPS</strong> — raising <code>LOG_EPS</code> from 0.25 → 0.40 extends the tolerance from ~1.78× to ~2.51× price deviation. This is a global change; must be validated on a hold-out set to measure false-positive impact before deployment.
+</li>
+<li data-n="C2">
+<strong>Price-trend adjustment</strong> — for products with time-stamped history, detect upward/downward price trends and project cluster ranges forward. A product trending $10→$13→$16 is likely ~$19 today; the 12-month-old cluster misses it.
+</li>
+<li data-n="C3">
+<strong>Analyst escalation queue</strong> — rows where the best candidate scores 0.20–0.30 (just below acceptance) are surfaced to analysts with the best DBSCAN candidate and distance from the cluster edge visible. Fast accept/reject with feedback loops back to threshold calibration.
+</li>
+</ul>
+<div class="sol-tags">
+<p><span class="sol-tag effort-low">C1: Low effort (config change)</span> <span class="sol-tag effort-low">C3: Low effort (UI change)</span> <span class="sol-tag effort-med">C2: Medium effort</span></p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</section>
+<section id="coverage-comparison" class="level2">
+<h2 class="anchored" data-anchor-id="coverage-comparison">Coverage Comparison</h2>
+<div id="96795b63" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div>            <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_SVG"></script><script>if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: "STIX-Web"}});}</script>                <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
+        <script charset="utf-8" src="https://cdn.plot.ly/plotly-3.5.0.min.js" integrity="sha256-fHbNLP+GlIXN+efbQec78UkemUz3NJp7UmfGxC1tNxs=" crossorigin="anonymous"></script>                <div id="94194d47-8cb9-49b0-b034-ad9673c261ec" class="plotly-graph-div" style="height:340px; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("94194d47-8cb9-49b0-b034-ad9673c261ec")) {                    Plotly.newPlot(                        "94194d47-8cb9-49b0-b034-ad9673c261ec",                        [{"cliponaxis":false,"hovertemplate":"\u003cb\u003e%{y}\u003c\u002fb\u003e\u003cbr\u003e~%{x:,} rows potentially recovered\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":["#10b981","#06b6d4","#4f46e5","#8b5cf6"],"line":{"width":0}},"orientation":"h","text":["  ~13,140 rows","  ~8,760 rows","  ~31,400 rows","  ~47 rows"],"textfont":{"color":"#475569","family":"Inter, sans-serif","size":11},"textposition":"outside","x":[13140,8760,31400,47],"y":["C3 \u2014 Escalation Queue\u003cbr\u003e\u003ci style=\"color:#94a3b8;font-size:10px\"\u003eNear-miss rows, score 0.20\u20130.30\u003c\u002fi\u003e","C1 \u2014 Widen LOG_EPS\u003cbr\u003e\u003ci style=\"color:#94a3b8;font-size:10px\"\u003eConfig change + hold-out validation\u003c\u002fi\u003e","B \u2014 Similar-Product Transfer\u003cbr\u003e\u003ci style=\"color:#94a3b8;font-size:10px\"\u003eSparse history bridge\u003c\u002fi\u003e","A \u2014 Agentic Web Search\u003cbr\u003e\u003ci style=\"color:#94a3b8;font-size:10px\"\u003eZero-history enrichment\u003c\u002fi\u003e"],"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"},"margin":{"b":0,"l":0,"r":0,"t":30}}},"font":{"family":"Inter, sans-serif","color":"#334155","size":11},"xaxis":{"tickfont":{"color":"#64748b","size":11},"gridcolor":"#f1f5f9","linecolor":"#e2e8f0","range":[0,38308.0],"title":{"text":"Estimated Rows Recoverable"}},"yaxis":{"tickfont":{"family":"Inter, sans-serif","size":11,"color":"#1e293b"},"linecolor":"#e2e8f0","autorange":"reversed","title":{"text":""}},"margin":{"t":20,"b":50,"l":260,"r":110},"hoverlabel":{"font":{"color":"white","family":"Inter, sans-serif"},"bgcolor":"#0f172a"},"paper_bgcolor":"white","plot_bgcolor":"#fafafa","bargap":0.35,"height":340},                        {"responsive": true}                    ).then(function(){
+                            
+var gd = document.getElementById('94194d47-8cb9-49b0-b034-ad9673c261ec');
+var x = new MutationObserver(function (mutations, observer) {{
+        var display = window.getComputedStyle(gd).display;
+        if (!display || display === 'none') {{
+            console.log([gd, 'removed!']);
+            Plotly.purge(gd);
+            observer.disconnect();
+        }}
+}});
+
+// Listen for the removal of the full notebook cells
+var notebookContainer = gd.closest('#notebook-container');
+if (notebookContainer) {{
+    x.observe(notebookContainer, {childList: true});
+}}
+
+// Listen for the clearing of the current output cell
+var outputEl = gd.closest('.output');
+if (outputEl) {{
+    x.observe(outputEl, {childList: true});
+}}
+
+                        })                };            </script>        </div>
+</div>
+</div>
+<hr>
+</section>
+<section id="recommended-roadmap" class="level2">
+<h2 class="anchored" data-anchor-id="recommended-roadmap">Recommended Roadmap</h2>
+<div class="roadmap">
+<div class="roadmap-item">
+<div class="roadmap-horizon">
+Medium Term
+</div>
+<div class="roadmap-title">
+B — Similar-Product Transfer
+</div>
+<div class="roadmap-desc">
+Co-design similarity criteria with domain analysts. Pilot on one manufacturer/category before expanding. Borrow ThresholdV2 profiles from structurally similar products with rich history.
+</div>
+</div>
+<div class="roadmap-item">
+<div class="roadmap-horizon">
+Longer Term
+</div>
+<div class="roadmap-title">
+A — Agentic Web Search
+</div>
+<div class="roadmap-desc">
+Prototype on a small batch of zero-history products. Evaluate citation quality and build the analyst review workflow. Requires prompt engineering, de-duplication, and a write-back feedback loop before scaling.
+</div>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 21%">
+<col style="width: 14%">
+<col style="width: 17%">
+<col style="width: 46%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Solution</th>
+<th style="text-align: right;">Reach</th>
+<th style="text-align: center;">Effort</th>
+<th style="text-align: center;">Analyst Input Needed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">B — Similar-product transfer</td>
+<td style="text-align: right;">~31,400 rows</td>
+<td style="text-align: center;">Medium</td>
+<td style="text-align: center;">Yes — criteria definition</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">A — Agentic search</td>
+<td style="text-align: right;">~47 rows</td>
+<td style="text-align: center;">High</td>
+<td style="text-align: center;">Yes — citation sign-off</td>
+</tr>
+</tbody>
+</table>
 
 
 </section>
